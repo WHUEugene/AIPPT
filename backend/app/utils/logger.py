@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import sys
 import time
 import uuid
 from datetime import datetime
@@ -10,12 +12,27 @@ from typing import Any, Dict, Optional
 from uuid import UUID
 
 
+def get_resource_path(relative_path):
+    """
+    获取资源文件的绝对路径
+    兼容开发环境和 PyInstaller 打包后的环境
+    """
+    if hasattr(sys, '_MEIPASS'):
+        # PyInstaller 打包后的临时目录
+        base_path = sys._MEIPASS
+    else:
+        # 开发环境
+        base_path = os.path.abspath(".")
+    
+    return os.path.join(base_path, relative_path)
+
+
 class PipelineLogger:
     """专门用于记录AI-PPT Flow各个阶段详细日志的工具类"""
     
     def __init__(self, log_dir: Optional[Path] = None):
         if log_dir is None:
-            log_dir = Path("logs")
+            log_dir = Path(get_resource_path("logs"))
         
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)

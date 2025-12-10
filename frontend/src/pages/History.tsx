@@ -5,6 +5,7 @@ import { fetchProjects, fetchProjectDetail, deleteProject } from '../services/ap
 import { useProjectStore } from '../store/useProjectStore';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import BackButton from '../components/ui/BackButton';
 import type { ProjectListItem } from '../services/types';
 
 export default function HistoryPage() {
@@ -77,6 +78,9 @@ export default function HistoryPage() {
   return (
     <div className="min-h-screen bg-pku-light p-8">
       <div className="max-w-6xl mx-auto">
+        <div className="mb-8">
+          <BackButton />
+        </div>
         {/* 页面头部 */}
         <div className="flex justify-between items-center mb-8">
           <div>

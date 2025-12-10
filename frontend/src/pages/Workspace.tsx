@@ -6,6 +6,7 @@ import { SlideCanvas } from '../components/workspace/SlideCanvas';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { AspectRatioSelector } from '../components/ui/AspectRatioSelector';
+import BackButton from '../components/ui/BackButton';
 import { generateSlide, exportPptx, batchGenerateSlides, getBatchStatus } from '../services/api';
 import type { SlideData, BatchGenerateResult, BatchStatusResult, SlideStatus, CustomDimensions } from '../services/types';
 import { useProjectStore } from '../store/useProjectStore';
@@ -402,6 +403,7 @@ export default function Workspace() {
       header={
         <div className="flex justify-between w-full items-center">
           <div className="flex items-center gap-8">
+            <BackButton showText={false} />
             <div>
               <span className="font-serif text-xl font-bold text-pku-red">{projectTitle}</span>
             </div>

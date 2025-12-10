@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Upload, Wand2, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import BackButton from '../components/ui/BackButton';
 import { analyzeTemplate, analyzeTemplateStream, saveTemplate, type TemplateStreamMessage } from '../services/api';
 import type { Template } from '../services/types';
 import { useProjectStore } from '../store/useProjectStore';
@@ -161,9 +162,12 @@ export default function TemplateCreate() {
   return (
     <div className="h-screen flex flex-col bg-white">
       <header className="h-16 border-b border-gray-200 flex items-center justify-between px-8">
-        <div>
-          <h2 className="text-xl font-serif font-bold">新建风格模版 (Style Extraction)</h2>
-          <p className="text-sm text-gray-500">上传 PPT 参考图，调用 VLM 提炼 Style Prompt</p>
+        <div className="flex items-center gap-4">
+          <BackButton />
+          <div>
+            <h2 className="text-xl font-serif font-bold">新建风格模版 (Style Extraction)</h2>
+            <p className="text-sm text-gray-500">上传 PPT 参考图，调用 VLM 提炼 Style Prompt</p>
+          </div>
         </div>
         <Button variant="ghost" onClick={() => navigate('/templates')}>
           取消

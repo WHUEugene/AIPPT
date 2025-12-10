@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Sparkles, Wand2, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import BackButton from '../components/ui/BackButton';
 import { generateOutline, generateOutlineStream, type StreamMessage } from '../services/api';
 import { useProjectStore } from '../store/useProjectStore';
 import type { SlideData } from '../services/types';
@@ -110,9 +111,12 @@ export default function ContentInput() {
   return (
     <div className="h-screen bg-white flex flex-col">
       <header className="h-16 border-b border-gray-200 flex items-center justify-between px-8">
-        <div>
-          <h2 className="text-xl font-serif font-bold">智能大纲生成</h2>
-          <p className="text-sm text-gray-500">输入文档内容，AI流式生成结构化PPT大纲</p>
+        <div className="flex items-center gap-4">
+          <BackButton />
+          <div>
+            <h2 className="text-xl font-serif font-bold">智能大纲生成</h2>
+            <p className="text-sm text-gray-500">输入文档内容，AI流式生成结构化PPT大纲</p>
+          </div>
         </div>
         <div className="text-sm text-gray-500">
           {generatedSlides.length > 0 && (

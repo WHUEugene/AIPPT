@@ -5,6 +5,7 @@
 
 import json
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Dict, Optional
@@ -13,6 +14,21 @@ from pydantic import ValidationError
 
 from ..schemas.config import AppConfig
 from ..utils.logger import get_logger
+
+
+def get_resource_path(relative_path):
+    """
+    获取资源文件的绝对路径
+    兼容开发环境和 PyInstaller 打包后的环境
+    """
+    if hasattr(sys, '_MEIPASS'):
+        # PyInstaller 打包后的临时目录
+        base_path = sys._MEIPASS
+    else:
+        # 开发环境
+        base_path = os.path.abspath(".")
+    
+    return os.path.join(base_path, relative_path)
 
 
 class ConfigManager:
@@ -31,9 +47,8 @@ class ConfigManager:
         if config_file:
             self.config_file = Path(config_file)
         else:
-            # 默认配置文件位置：backend/data/config.json
-            current_dir = Path(__file__).parent.parent.parent
-            self.config_file = current_dir / "data" / "config.json"
+            # 默认配置文件位置：使用 get_resource_path 处理
+            self.config_file = Path(get_resource_path("data/config.json"))
         
         # 确保配置目录存在
         self.config_file.parent.mkdir(parents=True, exist_ok=True)

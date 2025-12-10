@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import List
 
@@ -44,16 +45,32 @@ class Settings(BaseSettings):
         description="批量任务结果保留时间（小时）"
     )
 
+    def _get_default_data_path() -> Path:
+        """Get default data directory - use user data dir for desktop app, ensure paths exist."""
+        # 桌面应用环境，直接使用用户数据目录
+        home = Path.home()
+        data_dir = home / ".aippt-flow" / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        return data_dir
+    
+    def _get_default_generated_path() -> Path:
+        """Get default generated directory - use user data dir for desktop app, ensure paths exist."""
+        # 桌面应用环境，直接使用用户数据目录
+        home = Path.home()
+        gen_dir = home / ".aippt-flow" / "generated"
+        gen_dir.mkdir(parents=True, exist_ok=True)
+        return gen_dir
+
     template_store_path: Path = Field(
-        default=Path("backend/data/templates.json"),
+        default_factory=lambda: _get_default_data_path() / "templates.json",
         description="Location used to persist template definitions.",
     )
     image_output_dir: Path = Field(
-        default=Path("backend/generated/images"),
+        default_factory=lambda: _get_default_generated_path() / "images",
         description="Directory where generated slide assets are written.",
     )
     pptx_output_dir: Path = Field(
-        default=Path("backend/generated/pptx"),
+        default_factory=lambda: _get_default_generated_path() / "pptx",
         description="Directory for temporary PPTX exports.",
     )
 

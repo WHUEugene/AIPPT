@@ -32,7 +32,16 @@
   },
   "plugins": {
     "shell": {
-      "open": true
+      "all": false,
+      "open": true,
+      "sidecar": true,
+      "scope": [
+        {
+          "name": "binaries/backend-api",
+          "sidecar": true,
+          "args": true
+        }
+      ]
     }
   }
 }

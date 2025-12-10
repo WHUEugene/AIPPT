@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from glob import glob
 from datetime import datetime
 from pathlib import Path
@@ -7,10 +8,25 @@ from pathlib import Path
 from ..schemas.project import ProjectSchema, ProjectListItem
 
 
+def get_resource_path(relative_path):
+    """
+    获取资源文件的绝对路径
+    兼容开发环境和 PyInstaller 打包后的环境
+    """
+    if hasattr(sys, '_MEIPASS'):
+        # PyInstaller 打包后的临时目录
+        base_path = sys._MEIPASS
+    else:
+        # 开发环境
+        base_path = os.path.abspath(".")
+    
+    return os.path.join(base_path, relative_path)
+
+
 class ProjectService:
     def __init__(self):
         # 设置项目存储目录路径
-        self.projects_dir = Path(__file__).parent.parent.parent / "data" / "projects"
+        self.projects_dir = Path(get_resource_path("data/projects"))
         self.projects_dir.mkdir(parents=True, exist_ok=True)
 
     def save_project(self, project_data: ProjectSchema) -> ProjectSchema:

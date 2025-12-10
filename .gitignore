@@ -278,4 +278,5 @@ demo.png
 doc/prompt_samples/
 *.jpg
 *.png
-!demo.pngbackend/.env
+!demo.png
+phase1_prototype/config.yaml

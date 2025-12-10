@@ -52,15 +52,7 @@ class ProjectService:
             data["created_at"] = datetime.fromisoformat(data["created_at"])
             data["updated_at"] = datetime.fromisoformat(data["updated_at"])
             
-            # 解析slides中的UUID字段
-            from uuid import UUID
-            for slide in data["slides"]:
-                if "id" in slide and isinstance(slide["id"], str):
-                    try:
-                        slide["id"] = UUID(slide["id"])
-                    except ValueError:
-                        # 如果不是有效UUID，保持原样或生成新的
-                        pass
+            # slides中的ID字段保持字符串格式，不需要转换为UUID
             
             return ProjectSchema(**data)
         except (json.JSONDecodeError, KeyError, ValueError) as e:

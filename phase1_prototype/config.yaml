@@ -1,7 +1,7 @@
 openrouter:
   # 默认调用的模型名称
   model: "google/gemini-3-pro-image-preview"
-  api_key: "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"
+  api_key: 
   base_url: https://openrouter.ai/api/v1
 
 server:

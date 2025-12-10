@@ -5,8 +5,9 @@ import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
 import { SlideCanvas } from '../components/workspace/SlideCanvas';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import { AspectRatioSelector } from '../components/ui/AspectRatioSelector';
 import { generateSlide, exportPptx, batchGenerateSlides, getBatchStatus } from '../services/api';
-import type { SlideData, BatchGenerateResult, BatchStatusResult, SlideStatus } from '../services/types';
+import type { SlideData, BatchGenerateResult, BatchStatusResult, SlideStatus, CustomDimensions } from '../services/types';
 import { useProjectStore } from '../store/useProjectStore';
 
 export default function Workspace() {
@@ -30,6 +31,13 @@ export default function Workspace() {
   const [error, setError] = useState<string | null>(null);
   const [lastEditTime, setLastEditTime] = useState<number>(Date.now());
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // 新增比例相关状态
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('16:9');
+  const [customDimensions, setCustomDimensions] = useState<CustomDimensions>({
+    width: 1920,
+    height: 1080,
+    aspectRatio: '16:9'
+  });
 
   const currentSlide = useMemo(() => {
     return slides.find((slide) => slide.id === currentSlideId) || slides[0] || null;
@@ -54,6 +62,11 @@ export default function Workspace() {
 
       setBatchProgress('正在批量生成图片...');
 
+      // 使用选中的比例，如果是自定义则使用计算出的比例
+      const aspectRatioToUse = selectedAspectRatio === 'custom' 
+        ? customDimensions.aspectRatio 
+        : selectedAspectRatio;
+        
       const result = await batchGenerateSlides({
         slides: slides.map(slide => ({
           id: slide.id,
@@ -65,7 +78,7 @@ export default function Workspace() {
         })),
         style_prompt: currentTemplate.style_prompt,
         // 不传max_workers，让后端使用智能逻辑：最少10个，最多等于幻灯片数量
-        aspect_ratio: '16:9'
+        aspect_ratio: aspectRatioToUse
       });
 
       setBatchProgress(`批量生成完成！成功: ${result.successful}/${result.total_slides}`);
@@ -191,9 +204,15 @@ export default function Workspace() {
     setRegenerating(true);
     setError(null);
     try {
+      // 使用选中的比例，如果是自定义则使用计算出的比例
+      const aspectRatioToUse = selectedAspectRatio === 'custom' 
+        ? customDimensions.aspectRatio 
+        : selectedAspectRatio;
+        
       const resp = await generateSlide({
         style_prompt: currentTemplate.style_prompt,
         visual_desc: currentSlide.visual_desc,
+        aspect_ratio: aspectRatioToUse,
         page_num: currentSlide.page_num,
         title: currentSlide.title,
         content_text: currentSlide.content_text,
@@ -215,15 +234,14 @@ export default function Workspace() {
     setExporting(true);
     setError(null);
     try {
-      const blob = await exportPptx({
-        project: {
-          template_id: currentTemplate?.id,
-          template_style_prompt: currentTemplate?.style_prompt,
-          title: projectTitle,
-          slides,
-        },
-        file_name: `${projectTitle || 'AI_PPT_Flow'}.pptx`
-      });
+      const projectData = {
+        template_id: currentTemplate?.id,
+        template_style_prompt: currentTemplate?.style_prompt,
+        title: projectTitle,
+        slides,
+      };
+      
+      const blob = await exportPptx(projectData, `${projectTitle || 'AI_PPT_Flow'}.pptx`);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -337,12 +355,24 @@ export default function Workspace() {
   const panel = (
     <div className="space-y-6">
       <section>
-        <h3 className="text-sm font-bold text-gray-700 mb-2">风格设定（只读）</h3>
+        <h3 className="text-sm font-bold text-gray-700 mb-2">模版设定（只读）</h3>
         <textarea
           className="w-full h-28 p-3 text-xs border border-gray-200 rounded bg-gray-50"
           value={currentTemplate?.style_prompt || '未选择模版'}
           readOnly
         />
+      </section>
+
+      <section>
+        <AspectRatioSelector
+          selectedRatio={selectedAspectRatio}
+          onRatioChange={setSelectedAspectRatio}
+          onCustomDimensionsChange={setCustomDimensions}
+          disabled={batchGenerating || regenerating}
+        />
+        <p className="text-xs text-gray-500 mt-2">
+          💡 提示：选择合适的比例会影响图片生成的最终尺寸和布局
+        </p>
       </section>
 
       <section>
@@ -371,20 +401,27 @@ export default function Workspace() {
     <WorkspaceLayout
       header={
         <div className="flex justify-between w-full items-center">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-8">
             <div>
               <span className="font-serif text-xl font-bold text-pku-red">{projectTitle}</span>
-              <p className="text-xs text-gray-500">
+            </div>
+            
+            <div className="flex items-center gap-6 text-sm">
+              <div className="text-xs text-gray-500">
                 模版：{currentTemplate?.name || '未选择'}
-                {projectId && (
-                  <span className="ml-2 flex items-center gap-1">
+              </div>
+              
+              {projectId && (
+                <>
+                  <div className="flex items-center gap-1 text-xs text-gray-500">
                     <Clock className="w-3 h-3" />
                     已保存
-                  </span>
-                )}
-              </p>
-              {projectId && (
-                <p className="text-xs text-gray-400">项目ID: {projectId.slice(0, 8)}...</p>
+                  </div>
+                  
+                  <div className="text-xs text-gray-400">
+                    项目ID: {projectId.slice(0, 8)}...
+                  </div>
+                </>
               )}
             </div>
           </div>

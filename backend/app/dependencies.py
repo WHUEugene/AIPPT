@@ -10,28 +10,37 @@ from .services.prompt_builder import PromptBuilder
 from .services.pptx_exporter import PPTXExporter
 from .services.style_analyzer import StyleAnalyzer
 from .services.template_store import TemplateStore
+from .services.config_manager import get_app_config
 
 
 @lru_cache
 def get_settings() -> Settings:
+    """保持向后兼容的设置获取方式"""
     settings = Settings()
     settings.ensure_runtime_paths()
     return settings
 
 
+def get_app_config_cached():
+    """获取应用配置（带缓存）"""
+    return get_app_config()
+
+
 @lru_cache
 def get_template_store() -> TemplateStore:
-    settings = get_settings()
-    return TemplateStore(settings.template_store_path)
+    """模板存储实例"""
+    config = get_app_config()
+    return TemplateStore(config.template_store_path)
 
 
 @lru_cache
 def get_llm_client() -> OpenRouterClient:
-    settings = get_settings()
+    """LLM客户端实例"""
+    config = get_app_config()
     return OpenRouterClient(
-        api_key=settings.llm_api_key,
-        base_url=settings.llm_api_base,
-        timeout_seconds=settings.llm_timeout_seconds,
+        api_key=config.llm_api_key,
+        base_url=config.llm_api_base,
+        timeout_seconds=config.llm_timeout_seconds,
     )
 
 
@@ -42,30 +51,34 @@ def get_prompt_builder() -> PromptBuilder:
 
 @lru_cache
 def get_style_analyzer() -> StyleAnalyzer:
-    settings = get_settings()
-    return StyleAnalyzer(get_llm_client(), settings.llm_chat_model)
+    """风格分析器实例"""
+    config = get_app_config()
+    return StyleAnalyzer(get_llm_client(), config.llm_chat_model)
 
 
 @lru_cache
 def get_outline_generator() -> OutlineGenerator:
-    settings = get_settings()
-    return OutlineGenerator(get_llm_client(), settings.llm_chat_model)
+    """大纲生成器实例"""
+    config = get_app_config()
+    return OutlineGenerator(get_llm_client(), config.llm_chat_model)
 
 
 @lru_cache
 def get_image_generator() -> ImageGenerator:
-    settings = get_settings()
+    """图像生成器实例"""
+    config = get_app_config()
     return ImageGenerator(
-        output_dir=settings.image_output_dir,
+        output_dir=config.image_output_dir,
         llm_client=get_llm_client(),
-        image_model=settings.llm_image_model,
+        image_model=config.llm_image_model,
     )
 
 
 @lru_cache
 def get_pptx_exporter() -> PPTXExporter:
-    settings = get_settings()
-    return PPTXExporter(settings.pptx_output_dir, settings.image_output_dir)
+    """PPTX导出器实例"""
+    config = get_app_config()
+    return PPTXExporter(config.pptx_output_dir, config.image_output_dir)
 
 
 __all__ = [

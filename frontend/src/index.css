@@ -5,7 +5,6 @@
 @layer base {
   body {
     @apply bg-pku-light text-pku-charcoal font-sans antialiased;
-    overflow: hidden;
   }
 
   h1,

@@ -3,12 +3,21 @@ export interface TemplateVisSettings {
   primary_color?: string;
 }
 
+export interface TemplateCustomDimensions {
+  width?: number;
+  height?: number;
+}
+
 export interface Template {
   id: string;
   name: string;
   style_prompt: string;
   cover_image?: string;
   vis_settings?: TemplateVisSettings;
+  // 新增比例和尺寸相关字段
+  aspect_ratios?: string[];
+  default_aspect_ratio?: string;
+  custom_dimensions?: TemplateCustomDimensions;
 }
 
 export type SlideType = 'cover' | 'content' | 'ending';
@@ -85,4 +94,18 @@ export interface BatchGenerateResult {
     error_message: string | null;
     generation_time: number;
   }>;
+}
+
+// 比例选项接口
+export interface AspectRatioOption {
+  value: string;
+  label: string;
+  description: string;
+}
+
+// 自定义尺寸接口
+export interface CustomDimensions {
+  width: number;
+  height: number;
+  aspectRatio: string;
 }

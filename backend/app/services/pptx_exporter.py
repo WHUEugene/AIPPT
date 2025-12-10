@@ -191,8 +191,27 @@ class PPTXExporter:
                     body.font.size = Pt(18)
 
             buffer = BytesIO()
-            prs.save(buffer)
-            buffer.seek(0)
+            # Fix encoding issue for Chinese characters
+            import tempfile
+            import os
+            
+            # First save to a temporary file to handle encoding properly
+            with tempfile.NamedTemporaryFile(suffix='.pptx', delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            try:
+                # Save to temp file first
+                prs.save(temp_path)
+                
+                # Read from temp file into buffer
+                with open(temp_path, 'rb') as f:
+                    buffer.write(f.read())
+                
+                buffer.seek(0)
+            finally:
+                # Clean up temp file
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
             filename = self._filename(project)
 
             self.logger.log_response(

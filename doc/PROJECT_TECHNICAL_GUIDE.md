@@ -365,7 +365,79 @@ Response:
 }
 ```
 
-#### 6. PPTX导出
+#### 6. 项目管理
+```
+# 获取项目列表
+GET /api/projects
+
+Response:
+[
+  {
+    "id": "项目UUID",
+    "title": "项目标题",
+    "updated_at": "2025-12-10T18:30:00Z",
+    "thumbnail_url": "/assets/slide_xxx.jpg"
+  }
+]
+
+# 获取项目详情
+GET /api/projects/{project_id}
+
+Response:
+{
+  "id": "项目UUID",
+  "title": "项目标题",
+  "created_at": "2025-12-10T18:00:00Z",
+  "updated_at": "2025-12-10T18:30:00Z",
+  "template_style_prompt": "风格提示词",
+  "slides": [
+    {
+      "id": "slide_uuid",
+      "page_num": 1,
+      "type": "cover",
+      "title": "幻灯片标题",
+      "content_text": "内容文本",
+      "visual_desc": "视觉描述",
+      "image_url": "/assets/slide_xxx.jpg",
+      "final_prompt": "最终提示词",
+      "status": "done"
+    }
+  ],
+  "thumbnail_url": "/assets/slide_xxx.jpg"
+}
+
+# 保存项目
+POST /api/projects/save
+Content-Type: application/json
+
+Body:
+{
+  "id": "项目UUID",
+  "title": "项目标题",
+  "template_style_prompt": "风格提示词",
+  "slides": [幻灯片数组]
+}
+
+Response:
+{
+  "id": "项目UUID",
+  "title": "项目标题",
+  "created_at": "2025-12-10T18:00:00Z",
+  "updated_at": "2025-12-10T18:30:00Z",
+  "template_style_prompt": "风格提示词",
+  "slides": [幻灯片数组]
+}
+
+# 删除项目
+DELETE /api/projects/{project_id}
+
+Response:
+{
+  "message": "Project deleted successfully"
+}
+```
+
+#### 7. PPTX导出
 ```
 POST /api/export/pptx
 Content-Type: application/json
@@ -466,6 +538,29 @@ Body: PPTX文件二进制数据
   "title": str,             # 项目标题
   "template_id": str,       # 当前模板ID
   "slides": List[SlideData] # 幻灯片列表
+}
+```
+
+#### ProjectSchema (完整项目数据)
+```python
+{
+  "id": str,                     # 项目唯一标识符
+  "title": str,                  # 项目标题
+  "created_at": datetime,        # 创建时间
+  "updated_at": datetime,        # 最后更新时间
+  "template_style_prompt": str,  # 风格提示词
+  "slides": List[SlideData],     # 幻灯片列表
+  "thumbnail_url": str          # 缩略图URL (可选)
+}
+```
+
+#### ProjectListItem (项目列表项)
+```python
+{
+  "id": str,             # 项目唯一标识符
+  "title": str,          # 项目标题
+  "updated_at": datetime, # 最后更新时间
+  "thumbnail_url": str   # 缩略图URL (可选)
 }
 ```
 
@@ -913,9 +1008,25 @@ async def benchmark_image_generation():
 - ✅ PPTX导出功能
 - ✅ React前端界面
 
-### v1.2.0 (计划中)
+### v1.2.0 (2025-12-10 发布)
+- ✅ **项目管理功能**
+  - 自动保存机制：批量生成后自动保存项目
+  - 编辑时自动保存：修改内容后5分钟自动保存
+  - 项目历史记录：查看和继续编辑历史项目
+  - 页面关闭提醒：未保存更改时提醒用户
+- ✅ **存储系统**
+  - 项目数据持久化到 `backend/data/projects/`
+  - 自动生成项目ID和元数据
+  - 缩略图和项目信息管理
+  - 项目删除和恢复功能
+- ✅ **前端用户体验**
+  - History页面：查看所有历史项目
+  - 项目缩略图预览
+  - 项目创建时间和最后更新时间显示
+  - 一键打开历史项目继续编辑
+
+### v1.3.0 (计划中)
 - 🔄 用户认证和权限管理
-- 🔄 项目历史和模板管理
 - 🔄 更多导出格式支持
 - 🔄 WebSocket实时推送
 - 🔄 AI模型选择和配置

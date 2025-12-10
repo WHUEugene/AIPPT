@@ -58,9 +58,9 @@ jobs:
 
       # 1. 安装 Node.js
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       # 2. 安装 Python
       - name: Setup Python
@@ -115,7 +115,10 @@ jobs:
 
       # 7. 安装前端依赖
       - name: Install Frontend Dependencies
-        run: npm install
+        run: |
+          cd frontend
+          npm ci
+          npm run build
 
       # 8. 构建 Tauri 应用并上传
       - name: Build Tauri App
@@ -123,6 +126,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tauriScript: npm run tauri
           releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ github.ref_name }}
           # 这里会自动把 src-tauri/target/release/bundle 下的文件上传到 Release

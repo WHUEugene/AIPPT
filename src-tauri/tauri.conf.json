@@ -26,22 +26,16 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "icon": [
+      "icons/icon.icns"
+    ],
     "externalBin": [
       "binaries/backend-api"
     ]
   },
   "plugins": {
     "shell": {
-      "all": false,
-      "open": true,
-      "sidecar": true,
-      "scope": [
-        {
-          "name": "binaries/backend-api",
-          "sidecar": true,
-          "args": true
-        }
-      ]
+      "open": true
     }
   }
 }

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nano Banana 前端</title>
+    <style>
+      :root {
+        font-family: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+        background-color: #f5f5f7;
+        color: #111827;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+      }
+
+      .container {
+        max-width: 860px;
+        margin: 0 auto;
+        background: #fff;
+        padding: 32px;
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+      }
+
+      h1 {
+        margin-top: 0;
+        font-size: 28px;
+      }
+
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 140px;
+        border-radius: 12px;
+        border: 1px solid #d1d5db;
+        padding: 12px 14px;
+        font-size: 16px;
+        resize: vertical;
+      }
+
+      input[type="file"] {
+        width: 100%;
+        padding: 10px 0;
+      }
+
+      button[type="submit"] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-radius: 999px;
+        padding: 12px 24px;
+        font-size: 16px;
+        font-weight: 600;
+        color: #fff;
+        background: linear-gradient(120deg, #9333ea, #ec4899);
+        cursor: pointer;
+        margin-top: 12px;
+      }
+
+      button[type="submit"]:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .status {
+        margin-top: 16px;
+        font-size: 14px;
+        color: #6b7280;
+      }
+
+      .text-output {
+        margin-top: 24px;
+        padding: 16px;
+        border-radius: 12px;
+        background-color: #f9fafb;
+        border: 1px dashed #d1d5db;
+        min-height: 40px;
+      }
+
+      .image-grid {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+      }
+
+      .image-grid img {
+        width: 100%;
+        border-radius: 16px;
+        box-shadow: 0 4px 30px rgba(15, 23, 42, 0.24);
+      }
+
+      .error {
+        color: #dc2626;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Nano Banana 视觉前端</h1>
+      <form id="generate-form">
+        <div class="field">
+          <label for="prompt">提示词</label>
+          <textarea
+            id="prompt"
+            name="prompt"
+            placeholder="描述你想要的 PPT 风格或内容"
+          ></textarea>
+        </div>
+        <div class="field">
+          <label for="image">参考图片（可选）</label>
+          <input id="image" type="file" name="image" accept="image/*" />
+        </div>
+        <button id="submit-btn" type="submit">生成图片</button>
+      </form>
+
+      <div id="status" class="status"></div>
+      <div id="text-output" class="text-output"></div>
+      <div id="image-output" class="image-grid"></div>
+    </div>
+
+    <script>
+      const form = document.getElementById("generate-form");
+      const statusEl = document.getElementById("status");
+      const textOutput = document.getElementById("text-output");
+      const imageOutput = document.getElementById("image-output");
+      const submitBtn = document.getElementById("submit-btn");
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        statusEl.textContent = "模型正在思考...";
+        statusEl.classList.remove("error");
+        textOutput.textContent = "";
+        imageOutput.innerHTML = "";
+        submitBtn.disabled = true;
+
+        const formData = new FormData(form);
+        try {
+          const response = await fetch("/generate", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || "请求失败");
+          }
+
+          const data = await response.json();
+          statusEl.textContent = "生成完成";
+          textOutput.textContent = data.text || "(模型未返回文本)";
+
+          if (Array.isArray(data.images) && data.images.length) {
+            data.images.forEach((url, idx) => {
+              const img = document.createElement("img");
+              img.src = url;
+              img.alt = `模型返回的第 ${idx + 1} 张图`;
+              imageOutput.appendChild(img);
+            });
+          } else {
+            imageOutput.innerHTML = "<p>模型没有返回任何图片。</p>";
+          }
+        } catch (error) {
+          statusEl.textContent = "请求失败";
+          statusEl.classList.add("error");
+          textOutput.textContent = error.message;
+        } finally {
+          submitBtn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

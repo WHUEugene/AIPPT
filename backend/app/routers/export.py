@@ -66,7 +66,10 @@ async def export_pptx(
         # 重置buffer位置以便读取
         buffer.seek(0)
         
-        headers = {"Content-Disposition": f"attachment; filename=\"{final_name}\""}
+        # 处理文件名的中文编码问题
+        import urllib.parse
+        encoded_filename = urllib.parse.quote(final_name)
+        headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
         return StreamingResponse(
             buffer,
             media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",

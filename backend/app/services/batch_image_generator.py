@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -15,6 +15,107 @@ from ..utils.logger import get_logger
 from .image_generator import ImageGenerator
 from .llm_client import LLMClientError
 from .prompt_builder import PromptBuilder
+
+
+# 多进程worker函数 - 必须在模块级别定义
+def _generate_slide_worker(
+    slide_data: dict,
+    style_prompt: str,
+    aspect_ratio: str,
+    config: dict
+) -> dict:
+    """
+    多进程worker函数，生成单个幻灯片
+    slide_data: 序列化的幻灯片数据
+    """
+    import time
+    import asyncio
+    from pathlib import Path
+    
+    # 重新创建依赖对象（因为多进程不能共享对象）
+    from ..utils.logger import get_logger
+    from ..schemas.slide import SlideData, SlideStatus
+    from .llm_client import OpenRouterClient
+    from .prompt_builder import PromptBuilder
+    from .image_generator import ImageGenerator
+    
+    try:
+        # 重建依赖对象
+        llm_client = OpenRouterClient(
+            api_key=config["api_key"],
+            base_url=config["base_url"]
+        )
+        prompt_builder = PromptBuilder(llm_client)
+        image_generator = ImageGenerator(
+            output_dir=Path(config["output_dir"]),
+            llm_client=llm_client,
+            image_model=config["image_model"]
+        )
+        
+        # 重建SlideData对象
+        slide = SlideData(
+            id=slide_data["id"],
+            page_num=slide_data["page_num"],
+            type=slide_data["type"],
+            title=slide_data["title"],
+            content_text=slide_data["content_text"],
+            visual_desc=slide_data["visual_desc"]
+        )
+        
+        start_time = time.time()
+        
+        # 构建最终提示词
+        final_prompt = prompt_builder.build(
+            style_prompt=style_prompt,
+            visual_desc=slide.visual_desc,
+            title=slide.title,
+            content_text=slide.content_text,
+            aspect_ratio=aspect_ratio
+        )
+        
+        # 生成图片（直接使用异步方法，因为在多进程中每个进程都有自己的事件循环）
+        import asyncio
+        
+        async def generate_image():
+            return await image_generator.create(
+                title=slide.title,
+                final_prompt=final_prompt,
+                aspect_ratio=aspect_ratio,
+                page_num=slide.page_num
+            )
+        
+        # 在新的事件循环中运行
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            generated = loop.run_until_complete(generate_image())
+        finally:
+            loop.close()
+        
+        generation_time = time.time() - start_time
+        
+        return {
+            "success": True,
+            "slide_id": slide.id,
+            "page_num": slide.page_num,
+            "title": slide.title,
+            "image_url": generated.image_url,
+            "final_prompt": final_prompt,
+            "generation_time": generation_time,
+            "status": "done"
+        }
+        
+    except Exception as e:
+        generation_time = time.time() - start_time if 'start_time' in locals() else 0
+        return {
+            "success": False,
+            "slide_id": slide_data["id"],
+            "page_num": slide_data["page_num"],
+            "title": slide_data.get("title", ""),
+            "error_message": str(e),
+            "generation_time": generation_time,
+            "status": "error"
+        }
 
 
 @dataclass
@@ -57,7 +158,15 @@ class BatchImageGenerator:
         
         # 存储正在进行的批量任务
         self.active_batches: Dict[UUID, BatchTask] = {}
-        self.executor = ThreadPoolExecutor(max_workers=max_concurrent_batches)
+        self.executor = ProcessPoolExecutor(max_workers=max_concurrent_batches)
+        
+        # 多进程配置 - 从image_generator获取必要配置
+        self.multiprocess_config = {
+            "output_dir": str(image_generator.output_dir),
+            "image_model": image_generator.image_model,
+            "api_key": image_generator.llm_client.api_key,
+            "base_url": str(image_generator.llm_client.base_url)
+        }
 
     def create_batch(
         self,
@@ -135,34 +244,64 @@ class BatchImageGenerator:
                 }
             )
             
-            # 使用线程池执行并发生成 - 直接使用 concurrent.futures
-            with ThreadPoolExecutor(max_workers=batch_task.max_workers) as executor:
-                # 提交所有任务到线程池
-                future_to_slide = {}
-                
+            # 使用多进程执行并发生成 - 提交任务到进程池
+            with ProcessPoolExecutor(max_workers=batch_task.max_workers) as executor:
+                # 将所有幻灯片序列化为字典（多进程需要）
+                slide_data_list = []
                 for slide in batch_task.slides:
+                    slide_data_list.append({
+                        "id": slide.id,
+                        "page_num": slide.page_num,
+                        "type": slide.type,
+                        "title": slide.title,
+                        "content_text": slide.content_text,
+                        "visual_desc": slide.visual_desc
+                    })
+                
+                # 提交所有任务到进程池
+                future_to_slide_data = {}
+                for i, slide_data in enumerate(slide_data_list):
                     future = executor.submit(
-                        self._generate_single_slide,
-                        slide,
+                        _generate_slide_worker,
+                        slide_data,
                         batch_task.style_prompt,
                         batch_task.aspect_ratio,
-                        session_id
+                        self.multiprocess_config
                     )
-                    future_to_slide[future] = slide
+                    future_to_slide_data[future] = slide_data
                 
                 # 等待所有任务完成
-                for future in as_completed(future_to_slide):
-                    slide = future_to_slide[future]
+                for future in as_completed(future_to_slide_data):
+                    slide_data = future_to_slide_data[future]
                     
                     try:
-                        result = future.result()  # 直接获取结果，不需要await
-                        batch_task.results.append(result)
-                        batch_task.completed_count += 1
+                        worker_result = future.result()  # 获取多进程worker的结果
                         
-                        if result.status == SlideStatus.done:
+                        # 将worker结果转换为BatchGenerateItem
+                        if worker_result["success"]:
+                            batch_generate_item = BatchGenerateItem(
+                                slide_id=worker_result["slide_id"],
+                                page_num=worker_result["page_num"],
+                                title=worker_result["title"],
+                                image_url=worker_result.get("image_url", ""),
+                                final_prompt=worker_result.get("final_prompt", ""),
+                                status=SlideStatus.done,
+                                generation_time=worker_result["generation_time"]
+                            )
                             batch_task.success_count += 1
                         else:
+                            batch_generate_item = BatchGenerateItem(
+                                slide_id=worker_result["slide_id"],
+                                page_num=worker_result["page_num"],
+                                title=worker_result["title"],
+                                status=SlideStatus.error,
+                                error_message=worker_result.get("error_message", "Unknown error"),
+                                generation_time=worker_result["generation_time"]
+                            )
                             batch_task.failed_count += 1
+                        
+                        batch_task.results.append(batch_generate_item)
+                        batch_task.completed_count += 1
                         
                         # 记录单个幻灯片完成
                         self.logger.log_pipeline_step(
@@ -170,26 +309,27 @@ class BatchImageGenerator:
                             step="slide_completed",
                             details={
                                 "batch_id": str(batch_task.batch_id),
-                                "slide_id": str(slide.id),
-                                "page_num": slide.page_num,
-                                "status": result.status.value,
+                                "slide_id": str(worker_result["slide_id"]),
+                                "page_num": worker_result["page_num"],
+                                "status": worker_result["status"],
                                 "completed_count": batch_task.completed_count,
                                 "total_count": len(batch_task.slides),
                                 "progress": batch_task.progress,
-                                "stage": f"幻灯片 {slide.page_num} 生成完成"
+                                "success": worker_result["success"],
+                                "stage": f"幻灯片 {worker_result['page_num']} 生成完成"
                             }
                         )
                         
                     except Exception as e:
-                        # 处理异常
-                        error_result = BatchGenerateItem(
-                            slide_id=slide.id,
-                            page_num=slide.page_num,
-                            title=slide.title,
+                        # 处理进程池异常
+                        batch_generate_item = BatchGenerateItem(
+                            slide_id=slide_data["id"],
+                            page_num=slide_data["page_num"],
+                            title=slide_data.get("title", ""),
                             status=SlideStatus.error,
-                            error_message=str(e)
+                            error_message=f"进程池错误: {str(e)}"
                         )
-                        batch_task.results.append(error_result)
+                        batch_task.results.append(batch_generate_item)
                         batch_task.completed_count += 1
                         batch_task.failed_count += 1
                         
@@ -198,10 +338,10 @@ class BatchImageGenerator:
                             step="slide_error",
                             details={
                                 "batch_id": str(batch_task.batch_id),
-                                "slide_id": str(slide.id),
-                                "page_num": slide.page_num,
+                                "slide_id": str(slide_data["id"]),
+                                "page_num": slide_data["page_num"],
                                 "error": str(e),
-                                "stage": f"幻灯片 {slide.page_num} 生成失败"
+                                "stage": f"幻灯片 {slide_data['page_num']} 进程池失败"
                             }
                         )
             
@@ -270,69 +410,7 @@ class BatchImageGenerator:
                 success=False
             )
 
-    def _generate_single_slide(
-        self,
-        slide: SlideData,
-        style_prompt: str,
-        aspect_ratio: str,
-        session_id: str
-    ) -> BatchGenerateItem:
-        """生成单个幻灯片图片"""
-        start_time = time.time()
-        
-        try:
-            # 构建最终提示词
-            final_prompt = self.prompt_builder.build(
-                style_prompt=style_prompt,
-                visual_desc=slide.visual_desc,
-                title=slide.title,
-                content_text=slide.content_text,
-                aspect_ratio=aspect_ratio
-            )
-            
-            # 生成图片
-            generated = self.image_generator.create_sync(
-                title=slide.title,
-                final_prompt=final_prompt,
-                aspect_ratio=aspect_ratio,
-                page_num=slide.page_num,
-                session_id=f"{session_id}_slide_{slide.page_num}"
-            )
-            
-            generation_time = time.time() - start_time
-            
-            return BatchGenerateItem(
-                slide_id=slide.id,
-                page_num=slide.page_num,
-                title=slide.title,
-                image_url=generated.image_url,
-                final_prompt=final_prompt,
-                status=SlideStatus.done,
-                generation_time=generation_time
-            )
-            
-        except LLMClientError as e:
-            generation_time = time.time() - start_time
-            return BatchGenerateItem(
-                slide_id=slide.id,
-                page_num=slide.page_num,
-                title=slide.title,
-                status=SlideStatus.error,
-                error_message=f"LLM API error: {str(e)}",
-                generation_time=generation_time
-            )
-            
-        except Exception as e:
-            generation_time = time.time() - start_time
-            return BatchGenerateItem(
-                slide_id=slide.id,
-                page_num=slide.page_num,
-                title=slide.title,
-                status=SlideStatus.error,
-                error_message=str(e),
-                generation_time=generation_time
-            )
-
+  
     def get_batch_status(self, batch_id: UUID) -> Optional[BatchStatusResponse]:
         """获取批量任务状态"""
         batch_task = self.active_batches.get(batch_id)

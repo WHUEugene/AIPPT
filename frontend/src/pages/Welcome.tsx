@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusCircle, History } from 'lucide-react';
+import { PlusCircle, History, Settings } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 
 export default function Welcome() {
@@ -36,6 +36,17 @@ export default function Welcome() {
           </div>
           <h3 className="text-xl font-serif mb-2">我的项目</h3>
           <p className="text-sm text-gray-500 text-center px-4">查看和继续编辑<br />之前创建的项目</p>
+        </Card>
+
+        <Card 
+          className="w-64 h-72 flex flex-col items-center justify-center cursor-pointer hover:-translate-y-2 transition-transform duration-300 group"
+          onClick={() => navigate('/settings')}
+        >
+          <div className="w-16 h-16 rounded-full bg-pku-red/10 flex items-center justify-center mb-6 group-hover:bg-pku-red transition-colors">
+            <Settings className="w-8 h-8 text-pku-red group-hover:text-white" />
+          </div>
+          <h3 className="text-xl font-serif mb-2">系统设置</h3>
+          <p className="text-sm text-gray-500 text-center px-4">配置API密钥<br />和项目参数</p>
         </Card>
       </div>
 

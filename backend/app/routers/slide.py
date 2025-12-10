@@ -85,6 +85,7 @@ async def _create_image_response(
             payload.title, 
             final_prompt, 
             payload.aspect_ratio,
+            payload.page_num,
             session_id
         )
         

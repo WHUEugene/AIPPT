@@ -1,0 +1,128 @@
+name: Release App
+
+# 触发条件：当你推送 tag (如 v1.0.0) 时触发构建
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: # 允许手动点击按钮触发
+
+jobs:
+  create-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create-release.outputs.id }}
+      release_upload_url: ${{ steps.create-release.outputs.upload_url }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Create Release
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: true
+          prerelease: false
+
+  build-tauri:
+    needs: create-release
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest' # macOS x64
+            args: '--target x86_64-apple-darwin'
+            os_name: 'macos'
+            backend_target: 'x86_64-apple-darwin'
+            
+          - platform: 'ubuntu-22.04' # Linux
+            args: ''
+            os_name: 'linux'
+            backend_target: 'x86_64-unknown-linux-gnu'
+            
+          - platform: 'windows-latest' # Windows x64
+            args: ''
+            os_name: 'windows'
+            backend_target: 'x86_64-pc-windows-msvc'
+
+    runs-on: ${{ matrix.platform }}
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      # 1. 安装 Node.js
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      # 2. 安装 Python
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10' 
+
+      # 3. 安装 Rust
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'x86_64-apple-darwin' || '' }}
+
+      # 4. Linux 特有的系统依赖 (Tauri 需要)
+      - name: Install Linux Dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+
+      # 5. 安装 Python 依赖并打包后端
+      - name: Build Python Backend
+        shell: bash # 在 Windows 上也强制使用 bash 以统一命令
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install pyinstaller
+          # 打包成单文件，名字叫 backend-api
+          pyinstaller -F app/main.py --name backend-api --clean
+
+      # 6. 移动并重命名 Python 可执行文件 (关键步骤！)
+      - name: Move Binary to Sidecar Path
+        shell: bash
+        run: |
+          # 创建存放目录
+          mkdir -p src-tauri/binaries
+          
+          # 定义源文件和目标文件名
+          if [ "${{ matrix.os_name }}" == "windows" ]; then
+            SOURCE="backend/dist/backend-api.exe"
+            TARGET="src-tauri/binaries/backend-api-${{ matrix.backend_target }}.exe"
+          else
+            SOURCE="backend/dist/backend-api"
+            TARGET="src-tauri/binaries/backend-api-${{ matrix.backend_target }}"
+          fi
+          
+          echo "Moving $SOURCE to $TARGET"
+          mv "$SOURCE" "$TARGET"
+          
+          # 检查文件是否到位
+          ls -l src-tauri/binaries/
+
+      # 7. 安装前端依赖
+      - name: Install Frontend Dependencies
+        run: npm install
+
+      # 8. 构建 Tauri 应用并上传
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          tagName: ${{ github.ref_name }}
+          # 这里会自动把 src-tauri/target/release/bundle 下的文件上传到 Release

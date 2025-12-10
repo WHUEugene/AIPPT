@@ -115,12 +115,55 @@ npm run dev
 
 ---
 
+## 💻 桌面应用 (Tauri)
+
+我们使用 **Tauri + Python Sidecar** 架构将 Web 应用打包为桌面应用：
+
+### 架构说明
+- **前端**: React 应用运行在 Tauri WebView 中
+- **后端**: Python FastAPI 作为 Sidecar 进程在后台运行
+- **通信**: 通过 HTTP 请求 (localhost:8000) 进行前后端通信
+
+### 开发环境运行
+```bash
+# 安装 Rust 环境
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+
+# 运行桌面应用 (开发模式)
+npm run tauri:dev
+
+# 构建桌面应用 (生产版本)
+npm run tauri:build
+```
+
+### 自动化打包 (GitHub Actions)
+项目配置了完整的 CI/CD 流程，支持自动打包多平台安装包：
+
+1. **推送 Tag 触发构建**:
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. **自动生成多平台安装包**:
+   - Windows: `.exe` 和 `.msi`
+   - macOS: `.dmg` 和 `.app`
+   - Linux: `.deb` 和 `.AppImage`
+
+3. **下载地址**: GitHub Releases 页面
+
+详细配置见 `.github/workflows/release.yml`
+
+---
+
 ## 🗺️ 开发路线图 (Roadmap)
 
 - [x] **v1.0**: 基础流程跑通 (风格分析 -> 大纲 -> 单图生成 -> 导出)
 - [x] **v1.1**: 批量生成 (多进程优化) & 前端体验升级
 - [x] **v1.2**: 项目管理 (自动保存/历史记录) & 系统配置中心
-- [ ] **v1.3**: 图片ppt——》可编辑PPTX解析
+- [x] **v1.3**: 桌面应用 (Tauri + Python Sidecar)
+- [ ] **v1.4**: 可编辑PPTX解析
 - [ ] **v2.0**: 多人协作编辑 & 更多 AI 模型支持 (Midjourney/DALL-E 3)
 
 ---

@@ -273,7 +273,9 @@ Thumbs.db
 backend/generated/
 backend/backend/generated/
 backend/.env
-frontend/dist/
+backend/dist/
+backend/clean_env/
+backend/package_env/
 frontend/.tsbuildinfo
 demo.png
 doc/prompt_samples/
@@ -283,3 +285,15 @@ doc/prompt_samples/
 !doc/img/
 !doc/img/*.png
 phase1_prototype/config.yaml
+
+# Rust
+target/
+Cargo.lock
+
+# Tauri
+src-tauri/target/
+
+# Keep important directories
+!frontend/dist/
+!src-tauri/binaries/
+!src-tauri/binaries/.gitkeep

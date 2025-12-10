@@ -1,0 +1,33 @@
+#!/usr/bin/env python3
+"""
+Main entry point for the backend application when packaged as an executable.
+"""
+
+import sys
+import os
+
+# Add the app directory to the Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'app'))
+
+try:
+    from app.main import app
+except ImportError as e:
+    print(f"Failed to import app: {e}")
+    sys.exit(1)
+
+if __name__ == "__main__":
+    import uvicorn
+    
+    # Default host and port
+    host = "0.0.0.0"
+    port = 8000
+    
+    # Check if command line arguments are provided
+    if len(sys.argv) > 1:
+        try:
+            port = int(sys.argv[1])
+        except ValueError:
+            print("Invalid port number, using default 8000")
+    
+    print(f"Starting AI-PPT backend on http://{host}:{port}")
+    uvicorn.run(app, host=host, port=port)

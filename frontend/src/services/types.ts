@@ -109,3 +109,24 @@ export interface CustomDimensions {
   height: number;
   aspectRatio: string;
 }
+
+export interface BatchStatusResult {
+  batch_id: string;
+  total: number;
+  completed: number;
+  failed: number;
+  in_progress: number;
+  pending: number;
+  progress: number;
+  status: string;
+  results?: Array<{
+    slide_id: string;
+    page_num: number;
+    title: string;
+    image_url: string;
+    final_prompt: string;
+    status: string;
+    error_message: string | null;
+    generation_time: number;
+  }>;
+}

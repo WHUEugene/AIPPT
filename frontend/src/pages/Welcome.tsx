@@ -27,12 +27,15 @@ export default function Welcome() {
           <p className="text-sm text-gray-500 text-center px-4">选择模版，导入文档，<br />一键生成 PPT</p>
         </Card>
 
-        <Card className="w-64 h-72 flex flex-col items-center justify-center opacity-60">
-          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-6">
-            <History className="w-8 h-8 text-gray-600" />
+        <Card 
+          className="w-64 h-72 flex flex-col items-center justify-center cursor-pointer hover:-translate-y-2 transition-transform duration-300 group"
+          onClick={() => navigate('/history')}
+        >
+          <div className="w-16 h-16 rounded-full bg-pku-red/10 flex items-center justify-center mb-6 group-hover:bg-pku-red transition-colors">
+            <History className="w-8 h-8 text-pku-red group-hover:text-white" />
           </div>
-          <h3 className="text-xl font-serif mb-2">历史记录</h3>
-          <p className="text-sm text-gray-500 text-center px-4">下一步将同步接入<br /> 本地历史项目</p>
+          <h3 className="text-xl font-serif mb-2">我的项目</h3>
+          <p className="text-sm text-gray-500 text-center px-4">查看和继续编辑<br />之前创建的项目</p>
         </Card>
       </div>
 

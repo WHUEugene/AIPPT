@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Upload, Wand2 } from 'lucide-react';
+import { ArrowRight, Upload, Wand2, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { analyzeTemplate, saveTemplate } from '../services/api';
+import { analyzeTemplate, analyzeTemplateStream, saveTemplate, type TemplateStreamMessage } from '../services/api';
 import type { Template } from '../services/types';
 import { useProjectStore } from '../store/useProjectStore';
 
@@ -11,10 +11,12 @@ export default function TemplateCreate() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [coverImageUrl, setCoverImageUrl] = useState<string>('');
-  const [analyzing, setAnalyzing] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [prompt, setPrompt] = useState('');
+  const [promptChunks, setPromptChunks] = useState<string[]>([]);
   const [name, setName] = useState('未命名模版');
   const [error, setError] = useState<string | null>(null);
+  const [streamMessages, setStreamMessages] = useState<TemplateStreamMessage[]>([]);
   const { addTemplate, setCurrentTemplate } = useProjectStore();
 
   const handleFiles = (fileList: FileList | null) => {
@@ -35,22 +37,89 @@ export default function TemplateCreate() {
       setError('请先上传至少一张参考图片');
       return;
     }
+    
     setError(null);
-    setAnalyzing(true);
-    const formData = new FormData();
-    files.forEach((file) => formData.append('files', file));
+    setIsAnalyzing(true);
+    setPrompt('');
+    setPromptChunks([]);
+    setStreamMessages([]);
+    
     try {
-      const result = await analyzeTemplate(formData);
-      setPrompt(result.style_prompt);
+      await analyzeTemplateStream(files, (message) => {
+        setStreamMessages(prev => [...prev, message]);
+        
+        if (message.type === 'chunk' && message.content) {
+          setPromptChunks(prev => [...prev, message.content!]);
+          setPrompt(prev => prev + message.content + '\n');
+        }
+        
+        if (message.type === 'complete' && message.style_prompt) {
+          setPrompt(message.style_prompt);
+        }
+      });
+      
     } catch (err) {
       console.error(err);
-      setError('风格分析失败，请稍后重试');
+      setError('风格分析失败，请检查网络连接或稍后重试');
     } finally {
-      setAnalyzing(false);
+      setIsAnalyzing(false);
+    }
+  };
+
+  const renderStreamMessage = (message: TemplateStreamMessage, index: number) => {
+    switch (message.type) {
+      case 'start':
+        return (
+          <div key={index} className="flex items-center gap-2 text-blue-600 p-2 rounded">
+            <Wand2 className="w-4 h-4 animate-spin" />
+            <span>{message.message}</span>
+            {message.file_count && <span className="text-sm">({message.file_count} 个文件)</span>}
+          </div>
+        );
+      
+      case 'progress':
+        return (
+          <div key={index} className="flex items-center gap-2 text-gray-600 p-2 rounded">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm">{message.message}</span>
+          </div>
+        );
+      
+      case 'chunk_start':
+        return (
+          <div key={index} className="flex items-center gap-2 text-green-600 p-2 rounded">
+            <CheckCircle className="w-4 h-4" />
+            <span className="text-sm">{message.message}</span>
+          </div>
+        );
+      
+      case 'complete':
+        return (
+          <div key={index} className="flex items-center gap-2 text-green-600 p-3 rounded bg-green-100 border border-green-200">
+            <CheckCircle className="w-5 h-5" />
+            <span className="font-medium">{message.message}</span>
+          </div>
+        );
+      
+      case 'error':
+        return (
+          <div key={index} className="flex items-center gap-2 text-red-600 p-3 rounded bg-red-100 border border-red-200">
+            <AlertCircle className="w-5 h-5" />
+            <span className="font-medium">{message.message}</span>
+          </div>
+        );
+      
+      default:
+        return null;
     }
   };
 
   const handleSave = async () => {
+    if (!prompt.trim()) {
+      setError('请先分析图片生成风格提示词');
+      return;
+    }
+    
     // 创建封面图片URL（如果有的话）
     let coverImageUrlToSave = '';
     if (coverImageUrl) {
@@ -150,8 +219,8 @@ export default function TemplateCreate() {
             )}
           </div>
 
-          <Button className="mt-6 w-full py-6 text-lg" onClick={handleAnalyze} disabled={analyzing}>
-            {analyzing ? (
+          <Button className="mt-6 w-full py-3 text-lg" onClick={handleAnalyze} disabled={isAnalyzing || files.length === 0}>
+            {isAnalyzing ? (
               <span className="flex items-center">
                 <Wand2 className="animate-spin mr-2" /> 正在分析视觉风格...
               </span>
@@ -164,24 +233,61 @@ export default function TemplateCreate() {
           {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
         </div>
 
-        <div className="w-1/2 p-8 flex flex-col">
-          <h3 className="text-sm font-bold text-gray-500 mb-4 uppercase tracking-wider">Style Prompt (Editable)</h3>
-          <div className="flex-1 relative">
-            <textarea
-              className="w-full h-full p-6 bg-gray-900 text-green-400 font-mono text-sm rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-pku-red"
-              placeholder="// 等待分析结果... 这里将显示 AI 提取的风格描述指令"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-            />
-            {!prompt && !analyzing && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="text-gray-600">请先上传图片并点击分析</span>
+        <div className="w-1/2 p-8 flex flex-col bg-gray-50">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">分析进度</h3>
+            {isAnalyzing && (
+              <div className="flex items-center gap-2 text-blue-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">分析中...</span>
               </div>
             )}
           </div>
+          
+          {/* 流式消息区域 */}
+          <div className="h-48 overflow-y-auto mb-4 border border-gray-200 rounded-lg bg-white p-4">
+            {!isAnalyzing && streamMessages.length === 0 && (
+              <div className="flex items-center justify-center h-full text-gray-400">
+                <div className="text-center">
+                  <Upload className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">上传图片并点击分析</p>
+                  <p className="text-xs mt-1">分析过程将实时显示在这里</p>
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              {streamMessages.map((message, index) => renderStreamMessage(message, index))}
+            </div>
+          </div>
 
-          <div className="mt-6 flex justify-end">
-            <Button onClick={handleSave} disabled={!prompt}>
+          {/* Style Prompt 编辑区域 */}
+          <div className="flex-1 flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Style Prompt (可编辑)</h3>
+              {prompt && (
+                <span className="text-xs text-green-600">✓ 生成完成</span>
+              )}
+            </div>
+            
+            <div className="flex-1 relative">
+              <textarea
+                className="w-full h-full p-6 bg-gray-900 text-green-400 font-mono text-sm rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="// 等待分析结果... 这里将显示 AI 提取的风格描述指令"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                disabled={isAnalyzing}
+              />
+              {!prompt && !isAnalyzing && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <span className="text-gray-500">请先上传图片并点击分析</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <Button onClick={handleSave} disabled={!prompt.trim() || isAnalyzing}>
               保存并使用此模版 <ArrowRight className="ml-2 w-4 h-4" />
             </Button>
           </div>

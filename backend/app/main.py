@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .dependencies import get_settings
-from .routers import export, outline, slide, template
+from .routers import export, outline, project, slide, template
 
 settings = get_settings()
 
@@ -28,6 +28,7 @@ app.mount(
 app.include_router(template.router, prefix=settings.api_prefix)
 app.include_router(outline.router, prefix=settings.api_prefix)
 app.include_router(slide.router, prefix=settings.api_prefix)
+app.include_router(project.router, prefix=settings.api_prefix)
 app.include_router(export.router, prefix=settings.api_prefix)
 
 

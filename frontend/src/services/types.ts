@@ -51,3 +51,38 @@ export interface ProjectState {
   title?: string;
   slides: SlideData[];
 }
+
+export interface ProjectSchema {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  template_style_prompt: string;
+  slides: SlideData[];
+  thumbnail_url?: string;
+}
+
+export interface ProjectListItem {
+  id: string;
+  title: string;
+  updated_at: string;
+  thumbnail_url?: string;
+}
+
+export interface BatchGenerateResult {
+  batch_id: string;
+  total_slides: number;
+  successful: number;
+  failed: number;
+  total_time: number;
+  results: Array<{
+    slide_id: string;
+    page_num: number;
+    title: string;
+    image_url: string;
+    final_prompt: string;
+    status: string;
+    error_message: string | null;
+    generation_time: number;
+  }>;
+}

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # 批量生成配置
     batch_default_workers: int = Field(
-        default=5,
+        default=10,
         ge=1,
         le=50,
         description="默认的批量生成并发数"

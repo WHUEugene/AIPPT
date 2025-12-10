@@ -21,7 +21,7 @@ class SlideStatus(str, Enum):
 
 
 class SlideData(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
+    id: str = Field(default_factory=lambda: str(uuid4()))  # 改为字符串类型
     page_num: int = Field(..., ge=1)
     type: SlideType = SlideType.content
     title: str

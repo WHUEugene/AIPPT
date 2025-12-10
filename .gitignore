@@ -278,4 +278,4 @@ demo.png
 doc/prompt_samples/
 *.jpg
 *.png
-!demo.png
+!demo.pngbackend/.env

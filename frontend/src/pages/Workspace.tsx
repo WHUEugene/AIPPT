@@ -1,12 +1,12 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, RefreshCcw, Play } from 'lucide-react';
+import { Download, RefreshCcw, Play, Save, Clock } from 'lucide-react';
 import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
 import { SlideCanvas } from '../components/workspace/SlideCanvas';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { generateSlide, exportPptx, batchGenerateSlides } from '../services/api';
-import type { SlideData, BatchGenerateResult } from '../services/types';
+import { generateSlide, exportPptx, batchGenerateSlides, getBatchStatus } from '../services/api';
+import type { SlideData, BatchGenerateResult, BatchStatusResult, SlideStatus } from '../services/types';
 import { useProjectStore } from '../store/useProjectStore';
 
 export default function Workspace() {
@@ -18,12 +18,18 @@ export default function Workspace() {
     updateSlide,
     currentTemplate,
     projectTitle,
+    projectId,
+    saveCurrentProject,
   } = useProjectStore();
   const [regenerating, setRegenerating] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [batchProgress, setBatchProgress] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [lastEditTime, setLastEditTime] = useState<number>(Date.now());
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentSlide = useMemo(() => {
     return slides.find((slide) => slide.id === currentSlideId) || slides[0] || null;
@@ -58,7 +64,7 @@ export default function Workspace() {
           visual_desc: slide.visual_desc,
         })),
         style_prompt: currentTemplate.style_prompt,
-        max_workers: 3,
+        // 不传max_workers，让后端使用智能逻辑：最少10个，最多等于幻灯片数量
         aspect_ratio: '16:9'
       });
 
@@ -70,11 +76,23 @@ export default function Workspace() {
         if (slide) {
           updateSlide(slide.id, {
             image_url: slideResult.image_url,
-            status: slideResult.status,
+            status: slideResult.status as SlideStatus,
             final_prompt: slideResult.final_prompt
           });
         }
       });
+
+      // 批量生成完成后自动保存项目
+      try {
+        await saveCurrentProject();
+        setBatchProgress(prev => prev + ' (项目已自动保存)');
+      } catch (err) {
+        console.error('自动保存失败:', err);
+        setBatchProgress(prev => prev + ' (自动保存失败，请手动保存)');
+      }
+
+      // 图片生成完毕后，等待3秒再隐藏进度提示，让用户看到完整结果
+      setTimeout(() => setBatchProgress(''), 5000);
 
     } catch (err) {
       console.error(err);
@@ -86,7 +104,7 @@ export default function Workspace() {
       });
     } finally {
       setBatchGenerating(false);
-      setTimeout(() => setBatchProgress(''), 3000);
+      // 进度提示的隐藏逻辑已在上面处理（图片生成完毕后3秒）
     }
   };
 
@@ -104,6 +122,57 @@ export default function Workspace() {
       return () => clearTimeout(timer);
     }
   }, [slides, currentTemplate]);
+
+  // 自动保存功能：编辑后5分钟自动保存
+  useEffect(() => {
+    const setupAutoSave = () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+
+      autoSaveTimerRef.current = setTimeout(async () => {
+        try {
+          await saveCurrentProject();
+          console.log('项目已自动保存');
+        } catch (err) {
+          console.error('自动保存失败:', err);
+        }
+      }, 5 * 60 * 1000); // 5分钟
+    };
+
+    // 监听编辑操作
+    const handleEdit = () => {
+      setLastEditTime(Date.now());
+      setupAutoSave();
+    };
+
+    // 监听幻灯片内容变化
+    if (slides.length > 0) {
+      setupAutoSave();
+    }
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [slides, currentTemplate, saveCurrentProject]);
+
+  // 页面关闭前提醒保存
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const timeSinceLastEdit = Date.now() - lastEditTime;
+      const hasUnsavedChanges = timeSinceLastEdit < 5 * 60 * 1000; // 5分钟内有编辑
+
+      if (hasUnsavedChanges && slides.length > 0) {
+        e.preventDefault();
+        e.returnValue = '您有未保存的更改，确定要离开吗？';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [lastEditTime, slides]);
 
   if (!currentSlide) {
     return (
@@ -147,10 +216,13 @@ export default function Workspace() {
     setError(null);
     try {
       const blob = await exportPptx({
-        template_id: currentTemplate?.id,
-        template_style_prompt: currentTemplate?.style_prompt,
-        title: projectTitle,
-        slides,
+        project: {
+          template_id: currentTemplate?.id,
+          template_style_prompt: currentTemplate?.style_prompt,
+          title: projectTitle,
+          slides,
+        },
+        file_name: `${projectTitle || 'AI_PPT_Flow'}.pptx`
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -163,6 +235,23 @@ export default function Workspace() {
       setError('导出失败，请检查后端导出接口。');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveMessage('');
+    setError(null);
+    
+    try {
+      await saveCurrentProject();
+      setSaveMessage('项目已保存');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (err) {
+      console.error(err);
+      setError('保存失败，请检查网络连接');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -232,7 +321,16 @@ export default function Workspace() {
           {batchGenerating ? '批量生成中...' : '批量生成所有图片'}
         </Button>
       </div>
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      
+      {/* 提示信息 */}
+      <div className="flex flex-col gap-2">
+        {saveMessage && (
+          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-sm text-green-700">{saveMessage}</p>
+          </div>
+        )}
+        {error && <p className="text-sm text-red-500">{error}</p>}
+      </div>
     </div>
   );
 
@@ -252,7 +350,10 @@ export default function Workspace() {
         <textarea
           className="w-full h-56 p-3 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-pku-red"
           value={currentSlide.visual_desc}
-          onChange={(e) => updateSlide(currentSlide.id, { visual_desc: e.target.value })}
+          onChange={(e) => {
+            updateSlide(currentSlide.id, { visual_desc: e.target.value });
+            setLastEditTime(Date.now()); // 标记为已编辑
+          }}
           placeholder="描述这一页幻灯片应该包含什么样的视觉内容和布局..."
         />
         <p className="text-xs text-gray-500 mt-2">
@@ -270,13 +371,47 @@ export default function Workspace() {
     <WorkspaceLayout
       header={
         <div className="flex justify-between w-full items-center">
-          <div>
-            <span className="font-serif text-xl font-bold text-pku-red">{projectTitle}</span>
-            <p className="text-xs text-gray-500">模版：{currentTemplate?.name || '未选择'}</p>
+          <div className="flex items-center gap-6">
+            <div>
+              <span className="font-serif text-xl font-bold text-pku-red">{projectTitle}</span>
+              <p className="text-xs text-gray-500">
+                模版：{currentTemplate?.name || '未选择'}
+                {projectId && (
+                  <span className="ml-2 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    已保存
+                  </span>
+                )}
+              </p>
+              {projectId && (
+                <p className="text-xs text-gray-400">项目ID: {projectId.slice(0, 8)}...</p>
+              )}
+            </div>
           </div>
-          <Button variant="outline" onClick={handleExport} disabled={exporting}>
-            <Download className="w-4 h-4 mr-2" /> {exporting ? '导出中...' : '导出 PPTX'}
-          </Button>
+          
+          <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              onClick={handleSave} 
+              disabled={saving || batchGenerating}
+            >
+              <Save className="w-4 h-4 mr-2" /> 
+              {saving ? '保存中...' : '保存项目'}
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              onClick={() => navigate('/history')}
+              className="text-gray-600 hover:text-pku-red"
+            >
+              <Clock className="w-4 h-4 mr-2" /> 
+              我的项目
+            </Button>
+            
+            <Button variant="outline" onClick={handleExport} disabled={exporting}>
+              <Download className="w-4 h-4 mr-2" /> {exporting ? '导出中...' : '导出 PPTX'}
+            </Button>
+          </div>
         </div>
       }
       sidebar={sidebar}

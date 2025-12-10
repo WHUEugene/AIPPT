@@ -69,9 +69,9 @@ class BatchImageGenerator:
         """创建新的批量生成任务"""
         batch_id = uuid4()
         
-        # 智能设置并发数：最小10，最大为生成页数
+        # 智能设置并发数：1-10页使用页数个worker，10页以上使用10个worker
         if max_workers is None:
-            max_workers = max(10, len(slides))
+            max_workers = min(len(slides), 10)
         
         # 创建批量任务
         batch_task = BatchTask(

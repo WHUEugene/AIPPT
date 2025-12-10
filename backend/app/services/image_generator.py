@@ -54,7 +54,7 @@ class ImageGenerator:
 
         width, height = self._dimensions(aspect_ratio)
         # 使用页数和UUID生成文件名，格式：slide_{页数}_{UUID}.jpg 或 slide_{UUID}.jpg
-        page_prefix = f"{page_num:03d}_" if page_num is not None else ""
+        page_prefix = f"{int(page_num):03d}_" if page_num is not None else ""
         filename = f"slide_{page_prefix}{uuid4().hex}.jpg"
         file_path = self.output_dir / filename
 

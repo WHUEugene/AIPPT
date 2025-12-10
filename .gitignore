@@ -271,6 +271,7 @@ Thumbs.db
 
 # Project specific
 backend/generated/
+backend/backend/generated/
 backend/.env
 frontend/dist/
 frontend/.tsbuildinfo
@@ -279,4 +280,5 @@ doc/prompt_samples/
 *.jpg
 *.png
 !demo.png
+!doc/img/*.png
 phase1_prototype/config.yaml

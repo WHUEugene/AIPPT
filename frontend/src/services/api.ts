@@ -9,7 +9,11 @@ import type {
   TemplateListResponse,
 } from './types';
 
-const API_BASE = '/api';
+// 检测是否在桌面应用环境中
+const isDesktopApp = window.__TAURI__ !== undefined;
+
+// 桌面应用使用完整URL，Web应用使用相对路径
+const API_BASE = isDesktopApp ? 'http://localhost:8000/api' : '/api';
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {

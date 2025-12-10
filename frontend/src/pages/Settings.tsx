@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Save, Eye, EyeOff, ArrowLeft, Key, Server, Globe, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import BackButton from '../components/ui/BackButton';
 
 interface AppConfig {
   // AI服务配置

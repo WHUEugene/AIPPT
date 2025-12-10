@@ -190,3 +190,96 @@ MVP阶段确立了五个核心服务组件：
 *   **性能指标**:
     *   查看批量任务统计: `grep "batch_generate_complete" logs/...`
     *   查看单页生成时间: `grep "slide_completed" logs/...`
+
+---
+
+## PPTX 导出功能修复记录 (2025-12-10)
+
+### 问题现象
+- PPTX 导出文件生成正常，但幻灯片显示为空白
+- 日志显示图片添加成功，但实际内容不可见
+
+### 根本原因分析
+
+#### 1. 核心问题：单位换算错误 ❌
+**文件位置**: `backend/app/services/pptx_exporter.py`
+
+**错误代码**:
+```python
+# 将PPTX的EMU单位转换为英寸
+slide_width_inches = slide_width / 914400
+slide_height_inches = slide_height / 914400
+
+picture = slide.shapes.add_picture(
+    str(image_path), 0, 0,
+    width=slide_width_inches, height=slide_height_inches  # 错误：传入了小数英寸值
+)
+```
+
+**问题分析**:
+- `python-pptx` 的 `add_picture` 方法传入纯数字时，默认认为是 **EMU** 单位
+- 代码中将 EMU 转换为英寸后（约13.33），又被当作 EMU 使用
+- 结果：图片宽度为 13 EMU ≈ 0.001 像素，肉眼不可见
+
+**正确修复**:
+```python
+# ✅ 直接使用 EMU 单位，不进行换算
+picture = slide.shapes.add_picture(
+    str(image_path), 0, 0,
+    width=int(slide_width), height=int(slide_height)  # 直接使用 EMU
+)
+```
+
+#### 2. 次要问题：不存在的属性导致异常 ⚠️
+**错误代码**:
+```python
+picture.zorder = 0  # ❌ python-pptx 中没有这个属性
+```
+
+**问题分析**:
+- `python-pptx` 库中的 Picture 对象没有 `zorder` 属性
+- 赋值时抛出 `AttributeError`，但被 try-catch 捕获
+- 返回 False，但幻灯片已创建，导致空白幻灯片
+
+**正确修复**:
+```python
+# 删除或注释掉这行代码
+# picture.zorder = 0  # python-pptx 中没有这个属性
+```
+
+#### 3. 路径解析增强 🔧
+增强了 `_resolve_image_path` 方法，更好地处理 HTTP URL 格式的图片路径。
+
+### 修复时间线
+
+1. **初始问题**: PPTX 导出空白
+2. **误判方向**: 怀疑图片路径问题，修复了静态文件路由
+3. **发现关键**: 通过日志分析发现图片添加"成功"但实际空白
+4. **定位根因**: 识别出单位换算错误的核心问题
+5. **完整修复**: 修复单位换算 + 移除错误属性 + 增强路径解析
+
+### 技术要点
+
+#### 单位换算关键知识
+- 1 英寸 = 914400 EMU (English Metric Units)
+- 1 像素 ≈ 9525 EMU (96 DPI)
+- `python-pptx` 的 `add_picture` 传入数字默认为 EMU
+
+#### 调试经验
+- 日志显示成功不等于实际成功
+- 需要验证最终文件的物理内容
+- 单位换算是 PPTX 开发的常见陷阱
+
+### 验证方法
+```bash
+# 检查文件内容
+unzip -l output.pptx | grep image
+# 应该看到 ppt/media/image1.jpg 并有合理的文件大小
+
+# 检查文件格式
+file output.pptx
+# 应该显示 "Microsoft OOXML"
+```
+
+### 状态
+✅ **已修复** - 图片现在能正确铺满幻灯片

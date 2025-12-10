@@ -36,10 +36,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest' # macOS x64
-            args: '--target x86_64-apple-darwin'
+          - platform: 'macos-latest' # macOS ARM64 (Apple Silicon)
+            args: '--target aarch64-apple-darwin'
             os_name: 'macos'
-            backend_target: 'x86_64-apple-darwin'
+            backend_target: 'aarch64-apple-darwin'
             
           - platform: 'ubuntu-22.04' # Linux
             args: ''
@@ -72,7 +72,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
 
       # 4. Linux 特有的系统依赖 (Tauri 需要)
       - name: Install Linux Dependencies

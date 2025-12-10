@@ -35,7 +35,13 @@
   },
   "plugins": {
     "shell": {
-      "open": true
+      "open": true,
+      "scope": [
+        {
+          "name": "binaries/backend-api",
+          "sidecar": true
+        }
+      ]
     }
   }
 }

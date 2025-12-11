@@ -51,7 +51,9 @@
   <img src="./doc/promo/幻灯片5.jpg" alt="幻灯片5 - 分析页" width="45%">
   <img src="./doc/promo/幻灯片6.jpg" alt="幻灯片6 - 总结页" width="45%">
 </div>
+
 ---
+
 ## 📸 界面展示
 
 <div align="center">

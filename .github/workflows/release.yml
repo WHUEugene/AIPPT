@@ -89,7 +89,7 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
           # 打包成单文件，名字叫 backend-api
-          pyinstaller -F app/main.py --name backend-api --clean
+          pyinstaller -F main.py --name backend-api --clean
 
       # 6. 移动并重命名 Python 可执行文件 (关键步骤！)
       - name: Move Binary to Sidecar Path
@@ -117,7 +117,7 @@ jobs:
       - name: Install Frontend Dependencies
         run: |
           cd frontend
-          npm ci
+          npm install
           npm run build
 
       # 8. 构建 Tauri 应用并上传

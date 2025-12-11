@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { SlideData, Template, ProjectSchema } from '../services/types';
 import { saveProject as saveProjectApi } from '../services/api';
+import { generateId } from '../utils/uuid';
 
 interface ProjectStore {
   templates: Template[];
@@ -65,7 +66,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const { projectId, slides, currentTemplate, projectTitle } = get();
     
     // 如果是新项目，生成一个 UUID
-    const id = projectId || crypto.randomUUID();
+    const id = projectId || generateId();
     
     const payload = {
       id,

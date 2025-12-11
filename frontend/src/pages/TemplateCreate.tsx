@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button';
 import { analyzeTemplate, analyzeTemplateStream, saveTemplate, type TemplateStreamMessage } from '../services/api';
 import type { Template } from '../services/types';
 import { useProjectStore } from '../store/useProjectStore';
+import { generateId } from '../utils/uuid';
 
 export default function TemplateCreate() {
   const navigate = useNavigate();
@@ -147,7 +148,7 @@ export default function TemplateCreate() {
         saved = await saveTemplate(payload);
       } catch (err) {
         console.warn('Save template failed, fallback to local record', err);
-        saved = { id: crypto.randomUUID(), ...payload };
+        saved = { id: generateId(), ...payload };
       }
       addTemplate(saved);
       setCurrentTemplate(saved);

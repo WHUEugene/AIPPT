@@ -7,7 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { AspectRatioSelector } from '../components/ui/AspectRatioSelector';
 import { generateSlide, exportPptx, batchGenerateSlides, getBatchStatus } from '../services/api';
-import type { SlideData, BatchGenerateResult, BatchStatusResult, SlideStatus, CustomDimensions } from '../services/types';
+import type { SlideData, BatchGenerateResult, SlideStatus, CustomDimensions } from '../services/types';
 import { useProjectStore } from '../store/useProjectStore';
 
 export default function Workspace() {
@@ -45,6 +45,10 @@ export default function Workspace() {
 
   // 批量生成所有图片
   const handleBatchGenerate = async () => {
+    if (batchGenerating) {
+      return;
+    }
+
     if (!currentTemplate || slides.length === 0) {
       setError('请先选择模版并生成大纲');
       return;
@@ -134,7 +138,7 @@ export default function Workspace() {
       
       return () => clearTimeout(timer);
     }
-  }, [slides, currentTemplate]);
+  }, [slides, currentTemplate, batchGenerating]);
 
   // 自动保存功能：编辑后5分钟自动保存
   useEffect(() => {

@@ -5,11 +5,12 @@ import { Button } from '../components/ui/Button';
 import { generateOutline, generateOutlineStream, type StreamMessage } from '../services/api';
 import { useProjectStore } from '../store/useProjectStore';
 import type { SlideData } from '../services/types';
+import { generateId } from '../utils/uuid';
 
 export default function ContentInput() {
   const navigate = useNavigate();
   const { currentTemplate, setSlides, setProjectTitle } = useProjectStore();
-  const [pageCount, setPageCount] = useState(8);
+  const [pageCount, setPageCount] = useState(10);
   const [text, setText] = useState('');
   const [title, setTitle] = useState('未命名项目');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -32,7 +33,7 @@ export default function ContentInput() {
         
         if (message.type === 'slide' && message.slide) {
           const newSlide: SlideData = {
-            id: crypto.randomUUID(),
+            id: generateId(),
             page_num: message.slide!.page_num,
             type: message.slide!.type as any,
             title: message.slide!.title,
@@ -141,8 +142,8 @@ export default function ContentInput() {
               <span className="text-sm font-medium text-gray-700">预计页数:</span>
               <input
                 type="range"
-                min={5}
-                max={20}
+                min={1}
+                max={50}
                 value={pageCount}
                 onChange={(e) => setPageCount(parseInt(e.target.value, 10))}
                 className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
@@ -171,21 +172,51 @@ export default function ContentInput() {
             />
           </div>
 
-          <Button 
-            className="mt-6 w-full py-3 text-lg" 
-            onClick={handleGenerate} 
-            disabled={!text || isGenerating}
-          >
-            {isGenerating ? (
-              <span className="flex items-center">
-                <Wand2 className="animate-spin mr-2" /> 正在生成大纲...
-              </span>
-            ) : (
-              <span className="flex items-center">
-                <Sparkles className="mr-2" /> AI 生成大纲
-              </span>
-            )}
-          </Button>
+          <div className="mt-6 flex gap-3">
+            <Button 
+              className="flex-1 py-3 text-lg" 
+              onClick={handleGenerate} 
+              disabled={!text || isGenerating}
+            >
+              {isGenerating ? (
+                <span className="flex items-center">
+                  <Wand2 className="animate-spin mr-2" /> 正在生成大纲...
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <Sparkles className="mr-2" /> AI 生成大纲
+                </span>
+              )}
+            </Button>
+            
+            <Button 
+              onClick={() => {
+                console.log('点击下一步，状态:', { isGenerating, generatedSlidesLength: generatedSlides.length });
+                navigate('/workspace');
+              }} 
+              className={`px-6 py-3 text-lg ${
+                (isGenerating || generatedSlides.length === 0)
+                  ? 'bg-gray-300 cursor-not-allowed' 
+                  : 'bg-green-600 hover:bg-green-700'
+              }`}
+              disabled={isGenerating || generatedSlides.length === 0}
+            >
+              {isGenerating ? (
+                <span className="flex items-center">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  生成中...
+                </span>
+              ) : generatedSlides.length === 0 ? (
+                <span className="flex items-center">
+                  下一步 <ArrowRight className="ml-2 w-4 h-4" />
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  下一步 <ArrowRight className="ml-2 w-4 h-4" />
+                </span>
+              )}
+            </Button>
+          </div>
           
           {error && (
             <div className="mt-2 text-sm text-red-500 bg-red-50 p-2 rounded">
@@ -206,6 +237,7 @@ export default function ContentInput() {
             )}
           </div>
           
+          {/* 滚动区域 */}
           <div className="flex-1 overflow-y-auto">
             {!isGenerating && streamMessages.length === 0 && (
               <div className="flex items-center justify-center h-full text-gray-400">
@@ -218,22 +250,9 @@ export default function ContentInput() {
             )}
 
             {streamMessages.map((message, index) => renderMessage(message, index))}
-
-            {generatedSlides.length > 0 && !isGenerating && (
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-green-700">
-                    <CheckCircle className="w-5 h-5" />
-                    <span className="font-medium">大纲生成完成！已生成 {generatedSlides.length} 页</span>
-                  </div>
-                  <Button onClick={() => navigate('/workspace')} className="ml-4">
-                    下一步：生成图片 <ArrowRight className="ml-2 w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
           </div>
-        </div>
+
+          </div>
       </div>
     </div>
   );

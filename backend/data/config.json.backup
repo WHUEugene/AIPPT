@@ -1,16 +1,16 @@
 {
-  "llm_api_key": "sk-test-api-key-12345",
+  "llm_api_key": "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",
   "llm_api_base": "https://openrouter.ai/api/v1",
   "llm_chat_model": "google/gemini-3-pro-preview",
   "llm_image_model": "google/gemini-3-pro-image-preview",
   "llm_timeout_seconds": 180,
-  "image_output_dir": "backend/generated/images",
-  "pptx_output_dir": "backend/generated/pptx",
+  "image_output_dir": "generated/images",
+  "pptx_output_dir": "generated/pptx",
   "template_store_path": "backend/data/templates.json",
   "allowed_origins": [
     "http://localhost:5173",
     "https://your-domain.com"
   ],
-  "project_name": "测试项目名称",
+  "project_name": "测试更新项目",
   "api_prefix": "/api"
 }

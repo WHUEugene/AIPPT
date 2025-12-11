@@ -38,22 +38,22 @@ class ConfigManager:
         # 确保配置目录存在
         self.config_file.parent.mkdir(parents=True, exist_ok=True)
         
-        # 默认配置（移除环境变量支持，统一使用config.json）
+        # 默认配置
         self._default_config = AppConfig(
-            llm_api_key="",
-            llm_api_base="https://openrouter.ai/api/v1",
-            llm_chat_model="google/gemini-3-pro-preview",
-            llm_image_model="google/gemini-3-pro-image-preview",
-            llm_timeout_seconds=120,
+            llm_api_key=os.getenv("LLM_API_KEY", ""),
+            llm_api_base=os.getenv("LLM_API_BASE", "https://openrouter.ai/api/v1"),
+            llm_chat_model=os.getenv("LLM_CHAT_MODEL", "google/gemini-3-pro-preview"),
+            llm_image_model=os.getenv("LLM_IMAGE_MODEL", "google/gemini-3-pro-image-preview"),
+            llm_timeout_seconds=int(os.getenv("LLM_TIMEOUT_SECONDS", "120")),
             
-            image_output_dir="backend/generated/images",
-            pptx_output_dir="backend/generated/pptx",
-            template_store_path="backend/data/templates.json",
+            image_output_dir=os.getenv("IMAGE_OUTPUT_DIR", "backend/generated/images"),
+            pptx_output_dir=os.getenv("PPTX_OUTPUT_DIR", "backend/generated/pptx"),
+            template_store_path=os.getenv("TEMPLATE_STORE_PATH", "backend/data/templates.json"),
             
-            allowed_origins=["http://localhost:5173", "https://your-domain.com"],
+            allowed_origins=os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,https://your-domain.com").split(","),
             
-            project_name="AI-PPT Flow Backend",
-            api_prefix="/api"
+            project_name=os.getenv("PROJECT_NAME", "AI-PPT Flow Backend"),
+            api_prefix=os.getenv("API_PREFIX", "/api")
         )
         
         self._config: Optional[AppConfig] = None
@@ -148,14 +148,66 @@ class ConfigManager:
             if file_config:
                 self._config = file_config
             else:
-                # 使用默认配置并保存到文件
-                self._config = self._default_config
-                self._save_to_file(self._config)
-                self.logger.logger.info("使用默认配置并保存到文件")
+                # 检查是否有模板文件
+                template_file = self.config_file.with_suffix('.json.example')
+                if template_file.exists():
+                    # 从模板创建配置（保留所有配置，除了API Key）
+                    self._create_from_template()
+                    self._config = self._load_from_file()
+                else:
+                    # 使用默认配置并保存到文件
+                    self._config = self._default_config
+                    self._save_to_file(self._config)
+                    self.logger.logger.info("使用默认配置并保存到文件")
             
             self._last_loaded = current_time
         
         return self._config
+    
+    def _create_from_template(self) -> bool:
+        """
+        从模板文件创建配置文件
+        
+        Returns:
+            是否创建成功
+        """
+        try:
+            template_file = self.config_file.with_suffix('.json.example')
+            if not template_file.exists():
+                return False
+            
+            # 读取模板文件
+            with open(template_file, 'r', encoding='utf-8') as f:
+                template_config = json.load(f)
+            
+            # 填入当前的配置值（除了API Key）
+            if self.config_file.exists():
+                # 如果有备份文件，读取当前值
+                backup_file = self.config_file.with_suffix('.json.backup')
+                if backup_file.exists():
+                    with open(backup_file, 'r', encoding='utf-8') as f:
+                        current_config = json.load(f)
+                    
+                    # 保留所有配置，但确保API Key为空
+                    template_config['llm_api_key'] = ""
+                    template_config['project_name'] = current_config.get('project_name', self._default_config.project_name)
+                    template_config['llm_timeout_seconds'] = current_config.get('llm_timeout_seconds', self._default_config.llm_timeout_seconds)
+                    template_config['image_output_dir'] = current_config.get('image_output_dir', self._default_config.image_output_dir)
+                    template_config['pptx_output_dir'] = current_config.get('pptx_output_dir', self._default_config.pptx_output_dir)
+                    template_config['template_store_path'] = current_config.get('template_store_path', self._default_config.template_store_path)
+                    template_config['allowed_origins'] = current_config.get('allowed_origins', self._default_config.allowed_origins)
+                    template_config['api_prefix'] = current_config.get('api_prefix', self._default_config.api_prefix)
+            
+            # 保存为实际配置文件
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(template_config, f, indent=2, ensure_ascii=False)
+            
+            self.logger.logger.info(f"从模板创建配置文件: {self.config_file}")
+            return True
+            
+        except Exception as e:
+            self.logger.logger.error(f"从模板创建配置文件失败: {e}")
+            return False
     
     def update_config(self, updates: Dict) -> bool:
         """

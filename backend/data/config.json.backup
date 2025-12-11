@@ -1,5 +1,5 @@
 {
-  "llm_api_key": "sk-test-key-123",
+  "llm_api_key": "sk-test-api-key-12345",
   "llm_api_base": "https://openrouter.ai/api/v1",
   "llm_chat_model": "google/gemini-3-pro-preview",
   "llm_image_model": "google/gemini-3-pro-image-preview",
@@ -11,6 +11,6 @@
     "http://localhost:5173",
     "https://your-domain.com"
   ],
-  "project_name": "测试更新项目",
+  "project_name": "测试项目名称",
   "api_prefix": "/api"
 }

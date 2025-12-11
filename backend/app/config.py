@@ -62,11 +62,12 @@ class Settings(BaseSettings):
         description="CORS origins permitted to access the API.",
     )
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        env_nested_delimiter="__",
-    )
+    # 移除环境变量支持，统一使用config.json配置文件
+    # model_config = SettingsConfigDict(
+    #     env_file=".env",
+    #     env_file_encoding="utf-8",
+    #     env_nested_delimiter="__",
+    # )
 
     def ensure_runtime_paths(self) -> None:
         """Create directories and data files required by the app."""

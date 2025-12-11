@@ -36,7 +36,7 @@ async def _create_image_response(
         aspect_ratio=payload.aspect_ratio,
         style_prompt_length=len(payload.style_prompt),
         visual_desc_length=len(payload.visual_desc),
-        content_text_length=len(payload.content_text)
+        content_text_length=len(payload.content_text) if payload.content_text else 0
     )
     
     try:

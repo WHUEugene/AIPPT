@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from .llm_client import LLMClientError, OpenRouterClient
 from ..utils.logger import get_logger
+from ..utils.dimension_calculator import calculate_dimensions
 
 
 @dataclass
@@ -170,13 +171,8 @@ class ImageGenerator:
         return image
 
     def _dimensions(self, aspect_ratio: str) -> Tuple[int, int]:
-        try:
-            width_ratio, height_ratio = (int(part) for part in aspect_ratio.split(":"))
-        except ValueError:
-            width_ratio, height_ratio = 16, 9
-        base_height = 720
-        base_width = int(base_height * (width_ratio / max(height_ratio, 1)))
-        return base_width, base_height
+        # 使用DimensionCalculator计算正确的尺寸
+        return calculate_dimensions(aspect_ratio)
 
     def _background_color(self, prompt: str) -> tuple[int, int, int]:
         digest = hashlib.md5(prompt.encode("utf-8")).hexdigest()

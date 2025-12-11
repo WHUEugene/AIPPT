@@ -71,7 +71,32 @@ AI-PPT Flow 采用现代化的前后端分离架构：
 *   Node.js 18+
 *   OpenRouter API Key (支持 Gemini 3 Pro)
 
-### 1. 后端启动
+### 🎉 一键启动 (推荐)
+
+#### macOS/Linux
+
+```bash
+# 在项目根目录执行
+./start.sh
+```
+
+#### Windows
+
+```cmd
+# 双击运行 start.bat，或命令行执行
+start.bat
+```
+
+**一键启动脚本特性**:
+- 🔍 **环境检查**: 自动检测 Python 和 Node.js
+- 📦 **自动安装**: 自动安装所需依赖包
+- 🔧 **配置辅助**: 自动创建 `.env` 配置文件
+- 🚀 **并行启动**: 同时启动前后端服务
+- 💡 **友好提示**: 详细的安装和访问指南
+
+### 🛠️ 手动启动
+
+#### 1. 后端启动
 
 ```bash
 cd backend
@@ -87,7 +112,7 @@ cp .env.example .env
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 2. 前端启动
+#### 2. 前端启动
 
 ```bash
 cd frontend

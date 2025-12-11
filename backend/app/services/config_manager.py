@@ -38,22 +38,22 @@ class ConfigManager:
         # 确保配置目录存在
         self.config_file.parent.mkdir(parents=True, exist_ok=True)
         
-        # 默认配置
+        # 默认配置（移除环境变量支持，统一使用config.json）
         self._default_config = AppConfig(
-            llm_api_key=os.getenv("LLM_API_KEY", ""),
-            llm_api_base=os.getenv("LLM_API_BASE", "https://openrouter.ai/api/v1"),
-            llm_chat_model=os.getenv("LLM_CHAT_MODEL", "google/gemini-3-pro-preview"),
-            llm_image_model=os.getenv("LLM_IMAGE_MODEL", "google/gemini-3-pro-image-preview"),
-            llm_timeout_seconds=int(os.getenv("LLM_TIMEOUT_SECONDS", "120")),
+            llm_api_key="",
+            llm_api_base="https://openrouter.ai/api/v1",
+            llm_chat_model="google/gemini-3-pro-preview",
+            llm_image_model="google/gemini-3-pro-image-preview",
+            llm_timeout_seconds=120,
             
-            image_output_dir=os.getenv("IMAGE_OUTPUT_DIR", "backend/generated/images"),
-            pptx_output_dir=os.getenv("PPTX_OUTPUT_DIR", "backend/generated/pptx"),
-            template_store_path=os.getenv("TEMPLATE_STORE_PATH", "backend/data/templates.json"),
+            image_output_dir="backend/generated/images",
+            pptx_output_dir="backend/generated/pptx",
+            template_store_path="backend/data/templates.json",
             
-            allowed_origins=os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,https://your-domain.com").split(","),
+            allowed_origins=["http://localhost:5173", "https://your-domain.com"],
             
-            project_name=os.getenv("PROJECT_NAME", "AI-PPT Flow Backend"),
-            api_prefix=os.getenv("API_PREFIX", "/api")
+            project_name="AI-PPT Flow Backend",
+            api_prefix="/api"
         )
         
         self._config: Optional[AppConfig] = None

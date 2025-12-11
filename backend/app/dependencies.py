@@ -33,9 +33,8 @@ def get_template_store() -> TemplateStore:
     return TemplateStore(config.template_store_path)
 
 
-@lru_cache
 def get_llm_client() -> OpenRouterClient:
-    """LLM客户端实例"""
+    """LLM客户端实例（移除缓存以确保配置更新生效）"""
     config = get_app_config()
     return OpenRouterClient(
         api_key=config.llm_api_key,
@@ -49,23 +48,20 @@ def get_prompt_builder() -> PromptBuilder:
     return PromptBuilder()
 
 
-@lru_cache
 def get_style_analyzer() -> StyleAnalyzer:
-    """风格分析器实例"""
+    """风格分析器实例（移除缓存以确保配置更新生效）"""
     config = get_app_config()
     return StyleAnalyzer(get_llm_client(), config.llm_chat_model)
 
 
-@lru_cache
 def get_outline_generator() -> OutlineGenerator:
-    """大纲生成器实例"""
+    """大纲生成器实例（移除缓存以确保配置更新生效）"""
     config = get_app_config()
     return OutlineGenerator(get_llm_client(), config.llm_chat_model)
 
 
-@lru_cache
 def get_image_generator() -> ImageGenerator:
-    """图像生成器实例"""
+    """图像生成器实例（移除缓存以确保配置更新生效）"""
     config = get_app_config()
     return ImageGenerator(
         output_dir=config.image_output_dir,

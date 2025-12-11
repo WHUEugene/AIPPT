@@ -36,16 +36,53 @@
 
 ---
 
+## 🎯 效果展示
+
+### AI 生成的精美幻灯片示例
+
+以下是使用 AI-PPT Flow 生成的实际幻灯片效果展示：
+
+<div align="center">
+  <img src="./doc/promo/幻灯片1.jpg" alt="幻灯片1 - 封面页" width="45%">
+  <img src="./doc/promo/幻灯片2.jpg" alt="幻灯片2 - 目录页" width="45%">
+</div>
+
+<div align="center">
+  <img src="./doc/promo/幻灯片3.jpg" alt="幻灯片3 - 内容页" width="45%">
+  <img src="./doc/promo/幻灯片4.jpg" alt="幻灯片4 - 数据展示" width="45%">
+</div>
+
+<div align="center">
+  <img src="./doc/promo/幻灯片5.jpg" alt="幻灯片5 - 分析页" width="45%">
+  <img src="./doc/promo/幻灯片6.jpg" alt="幻灯片6 - 总结页" width="45%">
+</div>
+
+*以上所有幻灯片均由 AI 根据参考图片风格自动生成，展现了完美的视觉一致性和专业的排版设计。*
+
+---
+
 ## 📸 界面展示
+
+<div align="center">
+  <img src="./doc/img/首页.png" alt="首页界面" width="48%">
+  <img src="./doc/img/大纲生成.png" alt="大纲生成界面" width="48%">
+</div>
+
+<div align="center">
+  <img src="./doc/img/新建风格.png" alt="新建风格界面" width="48%">
+  <img src="./doc/img/项目展示.png" alt="项目展示界面" width="48%">
+</div>
+
+<div align="center">
+  <img src="./doc/img/image-20251210192632612.png" alt="配置管理界面" width="48%">
+  <img src="./doc/img/界面展示补充.png" alt="界面展示补充" width="48%">
+</div>
 
 *上传参考图，AI 自动提取风格特征，并根据文档生成分页大纲。*
 
 *实时预览生成的幻灯片，支持多进程批量并发生成，实时显示进度。*
 
 *可视化的配置管理界面，支持自定义 API Key、模型参数及幻灯片尺寸。*
-
-![界面展示](./doc/img/image-20251210192632612.png)
-
 ---
 
 ## 🏗️ 系统架构
@@ -100,6 +137,29 @@ npm run dev
 ```
 
 访问 `http://localhost:5173` 即可开始使用。
+
+### 🚀 快速启动（推荐）
+
+为了简化启动流程，我们提供了一键启动脚本：
+
+#### Windows 用户
+```bash
+# 在项目根目录执行
+start.bat
+```
+
+#### Linux/macOS 用户  
+```bash
+# 在项目根目录执行
+chmod +x start.sh
+./start.sh
+```
+
+脚本会自动：
+- 检查并安装后端依赖
+- 启动后端服务（端口 8000）
+- 检查并安装前端依赖
+- 启动前端开发服务器（端口 5173）
 
 ---
 

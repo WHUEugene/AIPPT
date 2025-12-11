@@ -20,8 +20,13 @@ def get_resource_path(relative_path):
     
     return os.path.join(base_path, relative_path)
 
-# Add the app directory to the Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'app'))
+# Add the current directory to the Python path for PyInstaller
+if hasattr(sys, '_MEIPASS'):
+    # PyInstaller environment
+    sys.path.insert(0, sys._MEIPASS)
+else:
+    # Development environment
+    sys.path.insert(0, os.path.dirname(__file__))
 
 try:
     from app.main import app

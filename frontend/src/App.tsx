@@ -22,18 +22,21 @@ function BackendStarter() {
           const { Command } = await import('@tauri-apps/plugin-shell');
           
           // 启动 Python 后端
-          const command = Command.sidecar('binaries/backend-api');
+          const command = Command.sidecar('backend-api');
+          
+          // 增强前端报错
+          command.on('close', data => {
+            console.log(`Sidecar closed with code ${data.code} and signal ${data.signal}`);
+          });
+          command.on('error', error => console.error(`Sidecar error: ${error}`));
+          command.stdout.on('data', line => console.log(`[PY]: ${line}`));
+          command.stderr.on('data', line => console.error(`[PY ERR]: ${line}`));
           
           command.spawn().then((child) => {
             console.log('Python 后端已启动，PID:', child.pid);
+          }).catch((e) => {
+            console.error('致命错误：无法启动 Sidecar', e);
           });
-
-          // 监听后端输出（可选，用于调试）
-          command.on('close', data => {
-            console.log(`后端退出了，代码: ${data.code}`);
-          });
-          
-          command.on('error', error => console.error(`后端报错: ${error}`));
           
           // 健康检查：等待后端真正启动
           let attempts = 0;

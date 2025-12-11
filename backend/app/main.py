@@ -27,11 +27,19 @@ app.add_middleware(
 )
 
 # 静态文件挂载 - 使用动态配置
-app.mount(
-    "/assets",
-    StaticFiles(directory=str(app_config.image_output_dir)),
-    name="assets",
-)
+try:
+    # 确保目录存在
+    import os
+    image_dir = str(app_config.image_output_dir)
+    os.makedirs(image_dir, exist_ok=True)
+    app.mount(
+        "/assets",
+        StaticFiles(directory=image_dir),
+        name="assets",
+    )
+    print(f"✅ 成功挂载静态文件目录: {image_dir}")
+except Exception as e:
+    print(f"⚠️  静态文件目录挂载失败，将继续运行: {e}")
 
 # 路由注册 - 使用动态配置
 app.include_router(config.router, prefix=app_config.api_prefix)

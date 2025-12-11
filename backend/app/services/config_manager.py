@@ -22,13 +22,24 @@ def get_resource_path(relative_path):
     兼容开发环境和 PyInstaller 打包后的环境
     """
     if hasattr(sys, '_MEIPASS'):
-        # PyInstaller 打包后的临时目录
+        # PyInstaller 打包后的临时目录 - 只用于读取静态资源
         base_path = sys._MEIPASS
     else:
         # 开发环境
         base_path = os.path.abspath(".")
     
     return os.path.join(base_path, relative_path)
+
+
+def get_user_data_dir():
+    """
+    获取用户数据目录
+    确保应用在打包后有地方写入配置和日志
+    """
+    user_home = Path.home()
+    app_data_dir = user_home / ".ai-ppt-flow"
+    app_data_dir.mkdir(parents=True, exist_ok=True)
+    return app_data_dir
 
 
 class ConfigManager:
@@ -47,11 +58,15 @@ class ConfigManager:
         if config_file:
             self.config_file = Path(config_file)
         else:
-            # 默认配置文件位置：使用 get_resource_path 处理
-            self.config_file = Path(get_resource_path("data/config.json"))
+            # 默认配置文件位置：使用用户数据目录
+            user_data_dir = get_user_data_dir()
+            self.config_file = user_data_dir / "config.json"
         
         # 确保配置目录存在
         self.config_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # 获取用户数据目录
+        user_data_dir = get_user_data_dir()
         
         # 默认配置
         self._default_config = AppConfig(
@@ -61,9 +76,10 @@ class ConfigManager:
             llm_image_model=os.getenv("LLM_IMAGE_MODEL", "google/gemini-3-pro-image-preview"),
             llm_timeout_seconds=int(os.getenv("LLM_TIMEOUT_SECONDS", "120")),
             
-            image_output_dir=os.getenv("IMAGE_OUTPUT_DIR", "backend/generated/images"),
-            pptx_output_dir=os.getenv("PPTX_OUTPUT_DIR", "backend/generated/pptx"),
-            template_store_path=os.getenv("TEMPLATE_STORE_PATH", "backend/data/templates.json"),
+            # 使用用户数据目录，确保有写入权限
+            image_output_dir=os.getenv("IMAGE_OUTPUT_DIR", str(user_data_dir / "generated" / "images")),
+            pptx_output_dir=os.getenv("PPTX_OUTPUT_DIR", str(user_data_dir / "generated" / "pptx")),
+            template_store_path=os.getenv("TEMPLATE_STORE_PATH", str(user_data_dir / "templates.json")),
             
             allowed_origins=os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,https://your-domain.com").split(","),
             

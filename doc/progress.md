@@ -283,3 +283,128 @@ file output.pptx
 
 ### 状态
 ✅ **已修复** - 图片现在能正确铺满幻灯片
+
+---
+
+## 桌面应用打包尝试记录 (2025-12-11)
+
+### 项目目标
+将AI-PPT Flow打包为原生桌面应用，使用Tauri + Python Sidecar架构，提供离线用户体验。
+
+### 技术栈选择
+* **前端框架**: React + TypeScript + Vite
+* **桌面框架**: Tauri 2.0 (跨平台)
+* **后端**: Python FastAPI (打包为可执行文件)
+* **架构模式**: Sidecar模式 (Tauri主进程 + Python后端进程)
+
+### 主要问题和解决过程
+
+#### 1. Tauri 2.0 权限系统迁移困难 ⚠️
+**核心问题**: Tauri 1.0 到 2.0 权限系统彻底重构，原有的allowlist配置失效
+
+**解决方案尝试**:
+- 创建`src-tauri/capabilities/default.json`配置文件
+- 在`tauri.conf.json`中添加`"capabilities": ["default"]`引用
+- 配置`shell:allow-execute`权限允许执行Sidecar
+
+**结果**: 配置文件创建成功，但Sidecar仍无法启动
+
+#### 2. Python打包与依赖冲突 🐍
+**问题**: PyInstaller打包时遇到torch依赖冲突
+
+**解决过程**:
+- 创建干净虚拟环境避免torch依赖
+- 修复Python语法错误：`config_manager.py`中变量定义位置错误
+- 解决路径问题：修复用户主目录配置逻辑
+- 解决模块导入：修复PyInstaller模块包含问题
+
+**结果**: Python后端可独立正常运行，API服务正常响应
+
+#### 3. Sidecar文件名与路径陷阱 🔍 **关键发现**
+**问题**: 配置文件路径与实际文件位置不匹配
+
+**发现的问题**:
+- 配置中写`"backend-api"`，但文件在`src-tauri/binaries/`目录
+- 打包后文件名从`backend-api-aarch64-apple-darwin`被重命名为`backend-api`
+- 前端调用、Tauri配置、Capabilities配置需要完全一致
+
+**解决尝试**:
+- **"四点一线"配置对齐**:
+  - 文件位置: `src-tauri/backend-api-aarch64-apple-darwin`
+  - Tauri配置: `externalBin: ["backend-api"]`
+  - Capabilities权限: `"name": "backend-api"`
+  - 前端调用: `Command.sidecar('backend-api')`
+
+#### 4. 前端错误日志增强 🔧
+**问题**: Sidecar调用失败时没有错误信息输出
+
+**解决方法**:
+- 增强前端错误处理，添加详细的console.log输出
+- 监听Sidecar的stdout/stderr事件
+- 捕获并显示具体的启动失败原因
+
+### 最终状态
+- ✅ **后端独立运行**: 完全正常，API服务在8000端口响应正常
+- ✅ **Tauri应用启动**: 桌面界面正常显示
+- ❌ **Sidecar调用失败**: 后端进程无法通过Tauri启动
+
+### 根本原因分析
+尽管"四点一线"配置看似正确，但Tauri 2.0的Sidecar机制存在更深层的兼容性问题：
+1. **权限系统复杂性**: Tauri 2.0的安全策略极其严格，可能存在未知的权限配置要求
+2. **路径解析差异**: 开发环境和生产环境下的路径处理逻辑不一致
+3. **架构兼容性**: 当前项目结构可能与Tauri 2.0的最佳实践不完全兼容
+
+### 经验教训
+1. **Tauri版本升级风险**: 从1.0升级到2.0需要重新学习权限系统
+2. **文件命名陷阱**: Sidecar文件名在不同处理阶段会发生变化
+3. **逐步验证重要性**: 应从简单脚本开始逐步集成，而不是一次性完成
+4. **Dev vs Build差异**: 开发环境和生产环境的行为可能完全不同
+
+### 后续改进方向
+1. **简化架构**: 考虑使用更简单的进程间通信方式，如HTTP API调用独立后端服务
+2. **降级策略**: 考虑回退到Tauri 1.x版本，或使用Electron替代方案
+3. **官方文档研究**: 仔细研究Tauri 2.0的Sidecar最佳实践和示例项目
+4. **社区求助**: 向Tauri社区提交具体配置文件和错误日志寻求帮助
+
+### 配置文件参考
+以下为最终尝试的配置文件内容：
+
+**src-tauri/tauri.conf.json**:
+```json
+{
+  "bundle": {
+    "externalBin": ["backend-api"]
+  },
+  "app": {
+    "security": {
+      "capabilities": ["default"]
+    }
+  }
+}
+```
+
+**src-tauri/capabilities/default.json**:
+```json
+{
+  "identifier": "default",
+  "local": true,
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "backend-api",
+          "cmd": "",
+          "args": true,
+          "sidecar": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+虽然最终没有完全解决Sidecar调用问题，但通过这个过程深入了解了Tauri 2.0的权限系统和Sidecar机制，为后续项目积累了宝贵经验。

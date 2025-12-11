@@ -20,7 +20,10 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "capabilities": [
+        "default"
+      ]
     }
   },
   "bundle": {
@@ -30,18 +33,12 @@
       "icons/icon.icns"
     ],
     "externalBin": [
-      "binaries/backend-api"
+      "backend-api"
     ]
   },
   "plugins": {
     "shell": {
-      "open": true,
-      "scope": [
-        {
-          "name": "binaries/backend-api",
-          "sidecar": true
-        }
-      ]
+      "open": true
     }
   }
 }

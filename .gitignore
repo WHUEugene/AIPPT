@@ -283,4 +283,6 @@ doc/prompt_samples/
 !demo.png
 !doc/img/
 !doc/img/*.png
+!doc/promo/
+!doc/promo/*.jpg
 phase1_prototype/config.yaml

@@ -1,7 +1,7 @@
 {
-  "llm_api_key": "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",
+  "llm_api_key": "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",
   "llm_api_base": "https://openrouter.ai/api/v1",
-  "llm_chat_model": "google/gemini-3-pro-preview",
+  "llm_chat_model": "anthropic/claude-haiku-4.5",
   "llm_image_model": "google/gemini-3-pro-image-preview",
   "llm_timeout_seconds": 180,
   "image_output_dir": "generated/images",
@@ -11,6 +11,6 @@
     "http://localhost:5173",
     "https://your-domain.com"
   ],
-  "project_name": "测试更新项目",
+  "project_name": "测试项目名称",
   "api_prefix": "/api"
 }

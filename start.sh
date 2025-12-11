@@ -64,7 +64,7 @@ cd ..
 # ========== 启动服务 ==========
 echo -e "\n${YELLOW}[3/4] 启动后端服务...${NC}"
 cd backend
-uvicorn app.main:app --reload --port 8000 &
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 echo -e "${GREEN}✓ 后端服务已启动 (PID: $BACKEND_PID)${NC}"
 
@@ -73,6 +73,7 @@ sleep 3
 
 echo -e "\n${YELLOW}[4/4] 启动前端服务...${NC}"
 cd ../frontend
+# 使前端开发服务器监听所有网卡，便于局域网访问
 npm run dev &
 FRONTEND_PID=$!
 echo -e "${GREEN}✓ 前端服务已启动 (PID: $FRONTEND_PID)${NC}"
@@ -81,8 +82,16 @@ echo -e "${GREEN}✓ 前端服务已启动 (PID: $FRONTEND_PID)${NC}"
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}   启动完成！${NC}"
 echo -e "${GREEN}========================================${NC}"
-echo -e "后端服务: ${YELLOW}http://localhost:8000${NC}"
-echo -e "前端服务: ${YELLOW}http://localhost:5173${NC}"
+echo -e "后端服务(本机): ${YELLOW}http://localhost:8000${NC}"
+echo -e "前端服务(本机): ${YELLOW}http://localhost:5173${NC}"
+# 获取局域网 IP（首个非回环 IPv4）
+LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}')
+if [ -n "$LAN_IP" ]; then
+    echo -e "局域网访问后端: ${YELLOW}http://$LAN_IP:8000${NC}"
+    echo -e "局域网访问前端: ${YELLOW}http://$LAN_IP:5173${NC}"
+else
+    echo -e "${YELLOW}提示: 未自动检测到局域网 IP，请用 'ifconfig' 或 'ipconfig getifaddr en0' 查看本机 IP${NC}"
+fi
 echo -e "\n按 ${RED}Ctrl+C${NC} 停止所有服务\n"
 
 # 保存 PID 到文件，方便后续停止

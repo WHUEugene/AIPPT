@@ -38,10 +38,6 @@
 
 ## 🎯 效果展示
 
-### AI 生成的精美幻灯片示例
-
-以下是使用 AI-PPT Flow 生成的实际幻灯片效果展示：
-
 <div align="center">
   <img src="./doc/promo/幻灯片1.jpg" alt="幻灯片1 - 封面页" width="45%">
   <img src="./doc/promo/幻灯片2.jpg" alt="幻灯片2 - 目录页" width="45%">
@@ -56,9 +52,6 @@
   <img src="./doc/promo/幻灯片5.jpg" alt="幻灯片5 - 分析页" width="45%">
   <img src="./doc/promo/幻灯片6.jpg" alt="幻灯片6 - 总结页" width="45%">
 </div>
-
-*以上所有幻灯片均由 AI 根据参考图片风格自动生成，展现了完美的视觉一致性和专业的排版设计。*
-
 ---
 
 ## 📸 界面展示

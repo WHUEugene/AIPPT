@@ -273,6 +273,7 @@ Thumbs.db
 backend/generated/
 backend/backend/generated/
 backend/.env
+backend/data/config.json
 frontend/dist/
 frontend/.tsbuildinfo
 demo.png

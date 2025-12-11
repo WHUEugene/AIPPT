@@ -45,7 +45,7 @@ def _generate_slide_worker(
             api_key=config["api_key"],
             base_url=config["base_url"]
         )
-        prompt_builder = PromptBuilder()
+        prompt_builder = PromptBuilder(llm_client)
         image_generator = ImageGenerator(
             output_dir=Path(config["output_dir"]),
             llm_client=llm_client,

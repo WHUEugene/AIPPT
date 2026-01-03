@@ -192,7 +192,7 @@ export default function ContentInput() {
             <Button 
               onClick={() => {
                 console.log('点击下一步，状态:', { isGenerating, generatedSlidesLength: generatedSlides.length });
-                navigate('/workspace');
+                navigate('/workspace', { state: { autoGenerate: true } });
               }} 
               className={`px-6 py-3 text-lg ${
                 (isGenerating || generatedSlides.length === 0)

@@ -107,6 +107,64 @@
   <body>
     <div class="container">
       <h1>Nano Banana 视觉前端</h1>
+      
+      <!-- 配置区域 -->
+      <div class="config-section" style="margin-bottom: 32px; padding: 20px; background-color: #f9fafb; border-radius: 12px; border: 1px solid #e5e7eb;">
+        <h3 style="margin-top: 0; margin-bottom: 16px; font-size: 18px;">模型配置</h3>
+        <div class="config-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+          <div>
+            <label for="model_select" style="font-size: 14px; margin-bottom: 4px;">选择模型</label>
+            <select id="model_select" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+              <option value="">请选择模型...</option>
+            </select>
+          </div>
+          <div>
+            <label for="api_key" style="font-size: 14px; margin-bottom: 4px;">API密钥</label>
+            <input type="password" id="api_key" placeholder="输入API密钥" 
+                   style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+          </div>
+          <div>
+            <label for="base_url" style="font-size: 14px; margin-bottom: 4px;">API地址</label>
+            <input type="url" id="base_url" placeholder="API基础地址" 
+                   style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+          </div>
+        </div>
+        
+        <!-- 图片生成参数配置 -->
+        <div style="margin-top: 20px;">
+          <h4 style="font-size: 16px; margin-bottom: 12px;">图片生成参数</h4>
+          <div class="image-params-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">
+            <div>
+              <label for="aspect_ratio" style="font-size: 14px; margin-bottom: 4px;">画面比例</label>
+              <select id="aspect_ratio" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                <option value="1:1">1:1 (正方形)</option>
+                <option value="16:9">16:9 (横屏)</option>
+                <option value="9:16" selected>9:16 (竖屏手机)</option>
+                <option value="4:3">4:3 (传统)</option>
+                <option value="3:4">3:4 (竖版)</option>
+              </select>
+            </div>
+            <div>
+              <label for="resolution" style="font-size: 14px; margin-bottom: 4px;">分辨率</label>
+              <select id="resolution" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                <option value="HD">HD 高清</option>
+                <option value="FHD">FHD 全高清</option>
+                <option value="4K" selected>4K 超高清</option>
+                <option value="8K">8K 极高清</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <button type="button" id="save-config-btn" 
+                style="margin-top: 12px; padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
+          保存配置
+        </button>
+        <button type="button" id="load-config-btn" 
+                style="margin-top: 12px; margin-left: 8px; padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
+          加载当前配置
+        </button>
+      </div>
+
       <form id="generate-form">
         <div class="field">
           <label for="prompt">提示词</label>
@@ -134,6 +192,97 @@
       const textOutput = document.getElementById("text-output");
       const imageOutput = document.getElementById("image-output");
       const submitBtn = document.getElementById("submit-btn");
+      
+      // 配置相关元素
+      const modelSelect = document.getElementById("model_select");
+      const apiKeyInput = document.getElementById("api_key");
+      const baseUrlInput = document.getElementById("base_url");
+      const aspectRatioSelect = document.getElementById("aspect_ratio");
+      const resolutionSelect = document.getElementById("resolution");
+      const saveConfigBtn = document.getElementById("save-config-btn");
+      const loadConfigBtn = document.getElementById("load-config-btn");
+
+      // 模型配置数据
+      let availableModels = [];
+
+      // 加载可用模型
+      async function loadAvailableModels() {
+        try {
+          const response = await fetch("/config");
+          if (response.ok) {
+            const config = await response.json();
+            availableModels = config.available_models || [];
+            
+            // 填充模型选择下拉框
+            modelSelect.innerHTML = '<option value="">请选择模型...</option>';
+            availableModels.forEach(model => {
+              const option = document.createElement('option');
+              option.value = model.name;
+              option.textContent = model.name;
+              modelSelect.appendChild(option);
+            });
+            
+            // 设置当前选中的模型
+            if (config.model) {
+              modelSelect.value = config.model;
+              // 自动填充对应的API配置
+              const selectedModel = availableModels.find(m => m.name === config.model);
+              if (selectedModel) {
+                apiKeyInput.value = selectedModel.api_key || "";
+                baseUrlInput.value = selectedModel.base_url || "";
+              }
+            }
+          }
+        } catch (error) {
+          console.error("加载模型列表失败:", error);
+        }
+      }
+
+      // 模型选择变化时自动填充配置
+      modelSelect.addEventListener("change", () => {
+        const selectedModel = availableModels.find(m => m.name === modelSelect.value);
+        if (selectedModel) {
+          apiKeyInput.value = selectedModel.api_key || "";
+          baseUrlInput.value = selectedModel.base_url || "";
+        }
+      });
+
+      // 加载当前配置
+      loadConfigBtn.addEventListener("click", async () => {
+        await loadAvailableModels();
+        statusEl.textContent = "配置已加载";
+      });
+
+      // 保存配置
+      saveConfigBtn.addEventListener("click", async () => {
+        try {
+          const config = {
+            model: modelSelect.value,
+            api_key: apiKeyInput.value,
+            base_url: baseUrlInput.value
+          };
+          
+          const response = await fetch("/config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(config),
+          });
+
+          if (response.ok) {
+            statusEl.textContent = "配置已保存，请重启服务器生效";
+          } else {
+            const errorText = await response.text();
+            statusEl.textContent = "保存配置失败: " + errorText;
+          }
+        } catch (error) {
+          statusEl.textContent = "保存配置时出错: " + error.message;
+        }
+      });
+
+      // 页面加载时自动加载配置
+      window.addEventListener("load", () => {
+        loadAvailableModels();
+      });
 
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -143,7 +292,13 @@
         imageOutput.innerHTML = "";
         submitBtn.disabled = true;
 
+        // 构建包含图片参数的FormData
         const formData = new FormData(form);
+        
+        // 添加图片生成参数
+        formData.append("aspect_ratio", aspectRatioSelect.value);
+        formData.append("resolution", resolutionSelect.value);
+        
         try {
           const response = await fetch("/generate", {
             method: "POST",

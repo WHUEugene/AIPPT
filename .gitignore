@@ -274,6 +274,7 @@ backend/generated/
 backend/backend/generated/
 backend/.env
 backend/data/config.json
+config.json.backup
 frontend/dist/
 frontend/.tsbuildinfo
 demo.png

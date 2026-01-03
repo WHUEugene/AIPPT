@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Download, RefreshCcw, Play, Save, Clock } from 'lucide-react';
 import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
 import { SlideCanvas } from '../components/workspace/SlideCanvas';
@@ -12,6 +12,7 @@ import { useProjectStore } from '../store/useProjectStore';
 
 export default function Workspace() {
   const navigate = useNavigate();
+  const location = useLocation<{ autoGenerate?: boolean }>();
   const {
     slides,
     currentSlideId,
@@ -31,6 +32,7 @@ export default function Workspace() {
   const [error, setError] = useState<string | null>(null);
   const [lastEditTime, setLastEditTime] = useState<number>(Date.now());
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoBatchTriggeredRef = useRef(false);
   // 新增比例相关状态
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('16:9');
   const [customDimensions, setCustomDimensions] = useState<CustomDimensions>({
@@ -125,20 +127,27 @@ export default function Workspace() {
     }
   };
 
-  // 进入页面后自动批量生成（如果没有图片的话）
+  // 跳转自大纲页时自动批量生成（仅触发一次）
   useEffect(() => {
+    const shouldAutoGenerate = location.state?.autoGenerate;
+    if (!shouldAutoGenerate || autoBatchTriggeredRef.current) {
+      return;
+    }
+
     const hasNoImages = slides.length > 0 && slides.every(slide => !slide.image_url);
     const hasTemplate = !!currentTemplate;
-    
-    if (hasNoImages && hasTemplate && !batchGenerating) {
-      // 延迟1秒后开始批量生成，让用户看到页面
-      const timer = setTimeout(() => {
-        handleBatchGenerate();
-      }, 1000);
-      
-      return () => clearTimeout(timer);
+
+    if (!hasNoImages || !hasTemplate || batchGenerating) {
+      return;
     }
-  }, [slides, currentTemplate, batchGenerating]);
+
+    autoBatchTriggeredRef.current = true;
+    const timer = setTimeout(() => {
+      handleBatchGenerate();
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [location.state, slides, currentTemplate, batchGenerating]);
 
   // 自动保存功能：编辑后5分钟自动保存
   useEffect(() => {
@@ -368,21 +377,42 @@ export default function Workspace() {
       </section>
 
       <section>
-        <AspectRatioSelector
-          selectedRatio={selectedAspectRatio}
-          onRatioChange={setSelectedAspectRatio}
-          onCustomDimensionsChange={setCustomDimensions}
-          disabled={batchGenerating || regenerating}
-        />
+        <h3 className="text-sm font-bold text-gray-700 mb-3">大纲内容（可编辑）</h3>
+        <div className="space-y-3">
+          <div>
+            <div className="text-xs font-medium text-gray-500 mb-1">幻灯片标题</div>
+            <input
+              className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-pku-red"
+              value={currentSlide.title}
+              onChange={(e) => {
+                updateSlide(currentSlide.id, { title: e.target.value });
+                setLastEditTime(Date.now());
+              }}
+              placeholder="例如：项目亮点 / 行业趋势"
+            />
+          </div>
+          <div>
+            <div className="text-xs font-medium text-gray-500 mb-1">正文内容</div>
+            <textarea
+              className="w-full h-32 p-3 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-pku-red"
+              value={currentSlide.content_text}
+              onChange={(e) => {
+                updateSlide(currentSlide.id, { content_text: e.target.value });
+                setLastEditTime(Date.now());
+              }}
+              placeholder="写下该页需要呈现的要点、数据或文案..."
+            />
+          </div>
+        </div>
         <p className="text-xs text-gray-500 mt-2">
-          💡 提示：选择合适的比例会影响图片生成的最终尺寸和布局
+          ✏️ 这些文本会被用于提示词的标题与内嵌正文部分，修改后记得重新生成图片。
         </p>
       </section>
 
       <section>
         <h3 className="text-sm font-bold text-gray-700 mb-2">画面描述（可编辑）</h3>
         <textarea
-          className="w-full h-56 p-3 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-pku-red"
+          className="w-full h-40 p-3 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-pku-red"
           value={currentSlide.visual_desc}
           onChange={(e) => {
             updateSlide(currentSlide.id, { visual_desc: e.target.value });
@@ -392,6 +422,31 @@ export default function Workspace() {
         />
         <p className="text-xs text-gray-500 mt-2">
           💡 提示：修改描述后点击"更新并重绘"按钮可以重新生成当前页图片
+        </p>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-bold text-gray-700 mb-2">生成提示词（参考）</h3>
+        <textarea
+          className="w-full h-40 p-3 text-xs border border-gray-200 rounded bg-gray-50"
+          value={currentSlide.final_prompt || ''}
+          readOnly
+          placeholder="完成单页重绘或批量生成后，这里会展示完整提示词，方便对照检查"
+        />
+        <p className="text-xs text-gray-500 mt-2">
+          🔍 提示词由模版风格、画面描述、标题/正文以及尺寸约束共同组成，用于驱动 VLM 绘制最终图片。
+        </p>
+      </section>
+
+      <section>
+        <AspectRatioSelector
+          selectedRatio={selectedAspectRatio}
+          onRatioChange={setSelectedAspectRatio}
+          onCustomDimensionsChange={setCustomDimensions}
+          disabled={batchGenerating || regenerating}
+        />
+        <p className="text-xs text-gray-500 mt-2">
+          💡 提示：选择合适的比例会影响图片生成的最终尺寸和布局
         </p>
       </section>
 

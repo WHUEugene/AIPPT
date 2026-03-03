@@ -153,14 +153,15 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
         body: JSON.stringify({
           api_key: config.llm_api_key,
           api_base: config.llm_api_base,
-          model: config.llm_chat_model
+          model: config.llm_chat_model,
+          timeout_seconds: config.llm_timeout_seconds,
         }),
       });
       
       if (response.ok) {
         const data = await response.json();
         return {
-          success: true,
+          success: Boolean(data.success),
           message: data.message || '连接测试成功'
         };
       } else {

@@ -111,14 +111,15 @@ export default function Settings() {
         body: JSON.stringify({
           api_key: config.llm_api_key,
           api_base: config.llm_api_base,
-          model: config.llm_chat_model
+          model: config.llm_chat_model,
+          timeout_seconds: config.llm_timeout_seconds,
         }),
       });
       
       if (response.ok) {
         const data = await response.json();
         setTestResult({
-          success: true,
+          success: Boolean(data.success),
           message: data.message || '连接测试成功'
         });
       } else {
@@ -216,7 +217,7 @@ export default function Settings() {
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  OpenRouter API密钥，用于访问AI模型
+                  OpenRouter 或 OpenAI兼容网关 API密钥（例如 ChatFire）
                 </p>
               </div>
 

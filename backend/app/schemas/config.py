@@ -55,6 +55,7 @@ class ConnectionTestRequest(BaseModel):
     api_key: str = Field(..., description="API密钥")
     api_base: str = Field(..., description="API基础地址")
     model: str = Field(..., description="测试模型")
+    timeout_seconds: Optional[int] = Field(None, ge=30, le=300, description="超时时间(秒)")
 
 
 class ConnectionTestResponse(BaseModel):

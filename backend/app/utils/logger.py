@@ -224,6 +224,22 @@ class PipelineLogger:
         except Exception as e:
             self.logger.error(f"Failed to write session log: {e}")
 
+    # Compatibility passthroughs for callers that use standard logging API.
+    def debug(self, msg: str, *args, **kwargs):
+        self.logger.debug(msg, *args, **kwargs)
+
+    def info(self, msg: str, *args, **kwargs):
+        self.logger.info(msg, *args, **kwargs)
+
+    def warning(self, msg: str, *args, **kwargs):
+        self.logger.warning(msg, *args, **kwargs)
+
+    def error(self, msg: str, *args, **kwargs):
+        self.logger.error(msg, *args, **kwargs)
+
+    def exception(self, msg: str, *args, **kwargs):
+        self.logger.exception(msg, *args, **kwargs)
+
 
 # 全局logger实例
 pipeline_logger = PipelineLogger()

@@ -151,7 +151,8 @@ async def test_connection(
         # 创建临时LLM客户端进行测试
         test_client = llm_client.__class__(
             api_key=request.api_key,
-            base_url=request.api_base
+            base_url=request.api_base,
+            timeout_seconds=request.timeout_seconds or getattr(llm_client, "timeout", 120),
         )
         
         # 发送测试请求

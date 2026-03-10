@@ -109,6 +109,16 @@ export async function saveTemplate(payload: Omit<Template, 'id'>): Promise<Templ
   return data.template;
 }
 
+export async function updateTemplate(templateId: string, payload: Omit<Template, 'id'>): Promise<Template> {
+  const res = await fetch(`${API_BASE}/template/${templateId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await handleResponse<{ template: Template }>(res);
+  return data.template;
+}
+
 export async function generateOutline(text: string, slideCount: number, templateId?: string): Promise<OutlineResponse> {
   const res = await fetch(`${API_BASE}/outline/generate`, {
     method: 'POST',

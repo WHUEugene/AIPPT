@@ -9,6 +9,8 @@ interface AppConfig {
   llm_api_key: string;
   llm_api_base: string;
   llm_chat_model: string;
+  llm_image_api_key: string;
+  llm_image_api_base: string;
   llm_image_model: string;
   llm_timeout_seconds: number;
   
@@ -29,6 +31,8 @@ const defaultConfig: AppConfig = {
   llm_api_key: '',
   llm_api_base: 'https://openrouter.ai/api/v1',
   llm_chat_model: 'google/gemini-3-pro-preview',
+  llm_image_api_key: '',
+  llm_image_api_base: '',
   llm_image_model: 'google/gemini-3-pro-image-preview',
   llm_timeout_seconds: 120,
   
@@ -198,7 +202,7 @@ export default function Settings() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  API 密钥 <span className="text-red-500">*</span>
+                  主 API 密钥 <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -217,14 +221,14 @@ export default function Settings() {
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  OpenRouter 或 OpenAI兼容网关 API密钥（例如 ChatFire）
+                  文本模型默认走这里。图片模型可在下方单独指定 ChatFire 等网关。
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    API 基础地址
+                    主 API 基础地址
                   </label>
                   <input
                     type="url"
@@ -261,7 +265,7 @@ export default function Settings() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pku-red focus:border-pku-red"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     图像模型
@@ -272,6 +276,45 @@ export default function Settings() {
                     onChange={(e) => handleInputChange('llm_image_model', e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pku-red focus:border-pku-red"
                   />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-200">
+                <div className="mb-3">
+                  <h3 className="text-sm font-semibold text-gray-800">图像网关覆盖（可选）</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    留空则复用上面的主 API 配置。适合文本走 OpenRouter、NanoBanana 走 ChatFire。
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      图像 API 密钥
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showApiKey ? "text" : "password"}
+                        value={config.llm_image_api_key}
+                        onChange={(e) => handleInputChange('llm_image_api_key', e.target.value)}
+                        placeholder="留空则复用主 API 密钥"
+                        className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pku-red focus:border-pku-red"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      图像 API 基础地址
+                    </label>
+                    <input
+                      type="url"
+                      value={config.llm_image_api_base}
+                      onChange={(e) => handleInputChange('llm_image_api_base', e.target.value)}
+                      placeholder="留空则复用主 API 基础地址"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pku-red focus:border-pku-red"
+                    />
+                  </div>
                 </div>
               </div>
 

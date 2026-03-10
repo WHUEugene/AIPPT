@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Iterable, List, Optional
 from uuid import UUID
 
-from ..schemas.template import Template, TemplateCreate
+from ..schemas.template import Template, TemplateCreate, TemplateUpdate
 
 
 class TemplateStore:
@@ -30,6 +30,26 @@ class TemplateStore:
             records.append(json.loads(new_template.model_dump_json()))
             self._write(records)
         return new_template
+
+    def update_template(self, template_id: UUID, payload: TemplateUpdate) -> Optional[Template]:
+        with self._lock:
+            records = self._load()
+            for index, record in enumerate(records):
+                if str(record.get("id")) != str(template_id):
+                    continue
+
+                updated_record = {
+                    **record,
+                    **payload.model_dump(),
+                    "id": record.get("id"),
+                    "created_at": record.get("created_at"),
+                }
+                template = Template(**updated_record)
+                records[index] = json.loads(template.model_dump_json())
+                self._write(records)
+                return template
+
+        return None
 
     def get_template(self, template_id: UUID) -> Optional[Template]:
         for record in self._load():

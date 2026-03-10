@@ -5,6 +5,8 @@ export interface AppConfig {
   llm_api_key: string;
   llm_api_base: string;
   llm_chat_model: string;
+  llm_image_api_key: string;
+  llm_image_api_base: string;
   llm_image_model: string;
   llm_timeout_seconds: number;
   
@@ -25,6 +27,8 @@ const defaultConfig: AppConfig = {
   llm_api_key: '',
   llm_api_base: 'https://openrouter.ai/api/v1',
   llm_chat_model: 'google/gemini-3-pro-preview',
+  llm_image_api_key: '',
+  llm_image_api_base: '',
   llm_image_model: 'google/gemini-3-pro-image-preview',
   llm_timeout_seconds: 120,
   

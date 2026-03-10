@@ -253,46 +253,7 @@ async def generate_outline_stream(
                     raise ValueError("No slides parsed from response")
                     
             except Exception as llm_error:
-                # 使用回退方案
-                yield f"data: {json.dumps({'type': 'progress', 'message': 'AI生成失败，使用智能回退方案...'}, ensure_ascii=False)}\n\n"
-                
-                fallback_slides = generator._fallback_generate(
-                    payload.text, 
-                    payload.slide_count, 
-                    template_name, 
-                    session_id
-                )
-                
-                # 逐个发送回退方案的幻灯片
-                for i, slide in enumerate(fallback_slides):
-                    slide_data = {
-                        'type': 'slide',
-                        'slide': {
-                            'page_num': slide.page_num,
-                            'type': slide.type.value,
-                            'title': slide.title,
-                            'content_text': slide.content_text,
-                            'visual_desc': slide.visual_desc,
-                            'status': slide.status.value
-                        },
-                        'progress': f'{i + 1}/{len(fallback_slides)}',
-                        'current_slide': i + 1,
-                        'total_slides': len(fallback_slides)
-                    }
-                    yield f"data: {json.dumps(slide_data, ensure_ascii=False)}\n\n"
-                
-                # 发送完成信号
-                yield f"data: {json.dumps({'type': 'complete', 'message': '大纲生成完成（使用回退方案）', 'total_slides': len(fallback_slides)}, ensure_ascii=False)}\n\n"
-                
-                logger.log_response(
-                    session_id=session_id,
-                    stage="outline_generate_stream_fallback",
-                    data={
-                        "slides_count": len(fallback_slides),
-                        "fallback_used": True
-                    },
-                    success=True
-                )
+                raise llm_error
                 
         except Exception as e:
             error_data = {

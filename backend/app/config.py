@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_api_base: str = "https://openrouter.ai/api/v1"
     llm_chat_model: str = "google/gemini-3-pro-preview"
+    llm_image_api_key: str | None = None
+    llm_image_api_base: str = ""
     llm_image_model: str = "google/gemini-3-pro-image-preview"
     llm_timeout_seconds: int = 120
 

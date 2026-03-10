@@ -178,9 +178,9 @@ class BatchImageGenerator:
         """创建新的批量生成任务"""
         batch_id = uuid4()
         
-        # 智能设置并发数：1-10页使用页数个worker，10页以上使用10个worker
+        # 默认按图片数量全开并发，由路由层负责上限校验
         if max_workers is None:
-            max_workers = min(len(slides), 10)
+            max_workers = len(slides)
         
         # 创建批量任务
         batch_task = BatchTask(

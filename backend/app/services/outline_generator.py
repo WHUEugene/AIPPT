@@ -112,42 +112,20 @@ class OutlineGenerator:
                 step="llm_error",
                 details={
                     "error": str(e),
-                    "stage": "LLM调用失败，使用回退方案"
+                    "stage": "LLM调用失败"
                 }
             )
+            raise
         except ValueError as e:
             self.logger.log_pipeline_step(
                 session_id=session_id,
                 step="json_parse_error",
                 details={
                     "error": str(e),
-                    "stage": "JSON解析失败，使用回退方案"
+                    "stage": "JSON解析失败"
                 }
             )
-
-        # 使用回退方案
-        fallback_slides = self._fallback_generate(text, slide_count, template_name, session_id)
-        
-        self.logger.log_response(
-            session_id=session_id,
-            stage="outline_generation_fallback",
-            data={
-                "slides_count": len(fallback_slides),
-                "slides": [
-                    {
-                        "page_num": slide.page_num,
-                        "type": slide.type.value,
-                        "title": slide.title[:100],
-                        "content_length": len(slide.content_text),
-                        "visual_desc": slide.visual_desc[:100]
-                    }
-                    for slide in fallback_slides
-                ]
-            },
-            success=True
-        )
-        
-        return fallback_slides
+            raise
 
     def _outline_prompt(self, text: str, slide_count: int, template_name: str | None) -> list[dict[str, str]]:
         template_hint = f"模版：{template_name}." if template_name else ""

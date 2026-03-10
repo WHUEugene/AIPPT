@@ -1,151 +1,164 @@
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Optional
 
-from PIL import Image
+from PIL import Image, ImageOps
 from pptx import Presentation
-from pptx.enum.shapes import MSO_SHAPE_TYPE
-from pptx.util import Inches, Pt
+from pptx.util import Inches
 
 from ..schemas.project import ProjectState
 from ..utils.logger import get_logger
 
 
 class PPTXExporter:
+    DEFAULT_SLIDE_HEIGHT_INCHES = 7.5
+    EXPORT_DPI = 180
+    JPEG_QUALITY = 90
+
     def __init__(self, output_dir: Path, image_dir: Path):
         self.output_dir = Path(output_dir)
         self.image_dir = Path(image_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.logger = get_logger()
-    
-    def _get_image_dimensions(self, image_path: Path) -> Tuple[int, int]:
-        """获取图片的实际尺寸"""
+
+    def _get_image_dimensions(self, image_path: Path) -> tuple[int, int]:
+        with Image.open(image_path) as img:
+            return img.size
+
+    def _parse_aspect_ratio(self, aspect_ratio: str | None) -> tuple[int, int] | None:
+        if not aspect_ratio or ":" not in aspect_ratio:
+            return None
         try:
-            with Image.open(image_path) as img:
-                return img.size  # (width, height)
-        except Exception as e:
-            self.logger.error(f"Failed to get image dimensions for {image_path}: {e}")
-            raise
-
-    def _calculate_optimal_fit(self, image_width: int, image_height: int, 
-                              slide_width: float, slide_height: float) -> Tuple[float, float, float]:
-        """计算图片在幻灯片中的最佳适配尺寸和缩放比例"""
-        slide_aspect_ratio = slide_width / slide_height
-        image_aspect_ratio = image_width / image_height
-        
-        if abs(image_aspect_ratio - slide_aspect_ratio) < 0.01:
-            # 比例几乎相同，可以铺满
-            return slide_width, slide_height, 1.0
-        else:
-            # 比例不同，选择最佳的适配方式
-            if image_aspect_ratio > slide_aspect_ratio:
-                # 图片更宽，以高度为准
-                new_height = slide_height
-                new_width = new_height * image_aspect_ratio
-                if new_width > slide_width:
-                    # 图片超出幻灯片，以宽度为准
-                    new_width = slide_width
-                    new_height = new_width / image_aspect_ratio
-            else:
-                # 图片更高，以宽度为准
-                new_width = slide_width
-                new_height = new_width / image_aspect_ratio
-                if new_height > slide_height:
-                    # 图片超出幻灯片，以高度为准
-                    new_height = slide_height
-                    new_width = new_height * image_aspect_ratio
-            
-            scale_factor = min(new_width / slide_width, new_height / slide_height)
-            return new_width, new_height, scale_factor
-
-    def _calculate_center_position(self, image_width: float, image_height: float,
-                                   slide_width: float, slide_height: float) -> Tuple[float, float]:
-        """计算图片在幻灯片中的中心位置"""
-        left = (slide_width - image_width) / 2
-        top = (slide_height - image_height) / 2
-        return left, top
-
-    def _add_picture_with_protection(self, slide, image_path: Path, slide_width: float, slide_height: float) -> bool:
-        """添加图片到幻灯片，使幻灯片尺寸与图片匹配"""
-        try:
-            # 获取图片实际尺寸
-            img_width, img_height = self._get_image_dimensions(image_path)
-            
-            # ✅ 修正：直接使用 EMU 单位，不进行单位换算
-            picture = slide.shapes.add_picture(
-                str(image_path), 0, 0,  # 左上角起始位置
-                width=int(slide_width), height=int(slide_height)  # 直接使用 EMU 单位
+            width_ratio, height_ratio = (
+                int(part.strip()) for part in aspect_ratio.split(":", 1)
             )
-            
-            # python-pptx 中没有 zorder 属性，后添加的元素默认就在上层
-            # picture.zorder = 0  # 这行代码会导致 AttributeError
-            
-            # 记录图片调整信息
+        except ValueError:
+            return None
+        if width_ratio <= 0 or height_ratio <= 0:
+            return None
+        return width_ratio, height_ratio
+
+    def _resolve_slide_ratio(self, project: ProjectState) -> tuple[int, int]:
+        for slide in project.slides:
+            image_path = self._resolve_image_path(slide.image_url)
+            if image_path and image_path.exists():
+                return self._get_image_dimensions(image_path)
+
+        ratio = self._parse_aspect_ratio(project.aspect_ratio)
+        if ratio is not None:
+            return ratio
+
+        return (16, 9)
+
+    def _slide_dimensions(self, project: ProjectState) -> tuple[int, int]:
+        width_ratio, height_ratio = self._resolve_slide_ratio(project)
+        slide_height_inches = self.DEFAULT_SLIDE_HEIGHT_INCHES
+        slide_width_inches = slide_height_inches * width_ratio / height_ratio
+        return int(Inches(slide_width_inches)), int(Inches(slide_height_inches))
+
+    def _target_pixel_size(self, slide_width: int, slide_height: int) -> tuple[int, int]:
+        width_px = max(1, int(round((slide_width / 914400) * self.EXPORT_DPI)))
+        height_px = max(1, int(round((slide_height / 914400) * self.EXPORT_DPI)))
+        return width_px, height_px
+
+    def _prepare_image_blob(
+        self,
+        image_path: Path,
+        slide_width: int,
+        slide_height: int,
+    ) -> tuple[BytesIO, dict[str, str | int]]:
+        with Image.open(image_path) as img:
+            img = ImageOps.exif_transpose(img)
+            original_width, original_height = img.size
+            target_width_px, target_height_px = self._target_pixel_size(slide_width, slide_height)
+            resampling = Image.Resampling.LANCZOS if hasattr(Image, "Resampling") else Image.LANCZOS
+            if img.mode != "RGB":
+                flattened = Image.new("RGB", img.size, "white")
+                alpha = img.getchannel("A") if "A" in img.getbands() else None
+                flattened.paste(img, mask=alpha)
+                img = flattened
+
+            if img.size != (target_width_px, target_height_px):
+                img = img.resize((target_width_px, target_height_px), resampling)
+
+            output = BytesIO()
+            img.save(
+                output,
+                format="JPEG",
+                quality=self.JPEG_QUALITY,
+                optimize=True,
+                subsampling=0,
+            )
+            output.seek(0)
+
+        return output, {
+            "original_size": f"{original_width}x{original_height}",
+            "export_size": f"{target_width_px}x{target_height_px}",
+            "export_bytes": output.getbuffer().nbytes,
+        }
+
+    def _add_picture_with_protection(
+        self,
+        slide,
+        image_path: Path,
+        slide_width: int,
+        slide_height: int,
+        session_id: str,
+    ) -> bool:
+        try:
+            image_blob, metadata = self._prepare_image_blob(image_path, slide_width, slide_height)
+            slide.shapes.add_picture(
+                image_blob,
+                0,
+                0,
+                width=int(slide_width),
+                height=int(slide_height),
+            )
             self.logger.log_pipeline_step(
-                session_id="pptx_export",
+                session_id=session_id,
                 step="image_added",
                 details={
                     "image_file": image_path.name,
-                    "original_size": f"{img_width}x{img_height}",
-                    "slide_size": f"{int(slide_width)}x{int(slide_height)}",
-                    "final_size": f"{img_width}x{img_height}",
-                    "position": "(0, 0)",
-                    "stage": "图片已添加到幻灯片"
-                }
+                    "original_size": metadata["original_size"],
+                    "export_size": metadata["export_size"],
+                    "export_bytes": metadata["export_bytes"],
+                    "slide_size_emu": f"{int(slide_width)}x{int(slide_height)}",
+                    "stage": "图片按原始比例铺满导出页面后已添加",
+                },
             )
-            
             return True
-            
-        except Exception as e:
-            print(f"❌ 图片添加失败: {e}")
-            import logging
-            logging.error(f"Failed to add image to slide: {e}")
+        except Exception as exc:
+            self.logger.logger.error(f"Failed to add image to slide: {exc}")
             return False
 
-    def build(self, project: ProjectState, session_id: Optional[str] = None) -> Tuple[str, BytesIO]:
+    def build(self, project: ProjectState, session_id: Optional[str] = None) -> tuple[str, BytesIO]:
         prs = Presentation()
-        
-        # 获取第一张图片的尺寸来设置幻灯片尺寸
-        slide_width = prs.slide_width
-        slide_height = prs.slide_height
-        
-        if project.slides and project.slides[0].image_url:
-            first_image_path = self._resolve_image_path(project.slides[0].image_url)
-            if first_image_path and first_image_path.exists():
-                try:
-                    img_width, img_height = self._get_image_dimensions(first_image_path)
-                    # 将像素转换为PPTX单位（1英寸=914400 EMU，96 DPI）
-                    slide_width = (img_width / 96) * 914400
-                    slide_height = (img_height / 96) * 914400
-                    prs.slide_width = int(slide_width)
-                    prs.slide_height = int(slide_height)
-                    self.logger.log_pipeline_step(
-                        session_id=session_id or "pptx_export",
-                        step="slide_size_adjusted",
-                        details={
-                            "image_size": f"{img_width}x{img_height}",
-                            "slide_width_emu": int(slide_width),
-                            "slide_height_emu": int(slide_height),
-                            "slide_width_inches": slide_width / 914400,
-                            "slide_height_inches": slide_height / 914400
-                        }
-                    )
-                except Exception as e:
-                    self.logger.error(f"Failed to adjust slide size: {e}")
-        
-        slide_width = prs.slide_width
-        slide_height = prs.slide_height
-        
+
         if not session_id:
             session_id = self.logger.start_session(
                 "pptx_export",
                 project_title=project.title,
-                slides_count=len(project.slides)
+                slides_count=len(project.slides),
             )
+
+        slide_width, slide_height = self._slide_dimensions(project)
+        prs.slide_width = slide_width
+        prs.slide_height = slide_height
+
+        self.logger.log_pipeline_step(
+            session_id=session_id,
+            step="slide_size_adjusted",
+            details={
+                "aspect_ratio": project.aspect_ratio or "auto",
+                "slide_width_emu": int(slide_width),
+                "slide_height_emu": int(slide_height),
+                "slide_width_inches": slide_width / 914400,
+                "slide_height_inches": slide_height / 914400,
+            },
+        )
 
         images_processed = 0
         images_failed = 0
@@ -153,9 +166,8 @@ class PPTXExporter:
         try:
             for i, slide_data in enumerate(project.slides):
                 slide = prs.slides.add_slide(prs.slide_layouts[6])
-
-                # 处理图片
                 image_path = self._resolve_image_path(slide_data.image_url)
+
                 self.logger.log_pipeline_step(
                     session_id=session_id,
                     step="slide_image_check",
@@ -165,12 +177,18 @@ class PPTXExporter:
                         "image_url": slide_data.image_url,
                         "resolved_path": str(image_path) if image_path else "None",
                         "path_exists": image_path.exists() if image_path else False,
-                        "stage": f"第{i+1}张幻灯片图片路径检查"
-                    }
+                        "stage": f"第{i + 1}张幻灯片图片路径检查",
+                    },
                 )
-                
+
                 if image_path and image_path.exists():
-                    success = self._add_picture_with_protection(slide, image_path, slide_width, slide_height)
+                    success = self._add_picture_with_protection(
+                        slide,
+                        image_path,
+                        slide_width,
+                        slide_height,
+                        session_id,
+                    )
                     self.logger.log_pipeline_step(
                         session_id=session_id,
                         step="slide_image_add_result",
@@ -179,33 +197,13 @@ class PPTXExporter:
                             "slide_title": slide_data.title,
                             "success": success,
                             "image_path": str(image_path),
-                            "stage": f"第{i+1}张幻灯片图片添加结果: {'成功' if success else '失败'}"
-                        }
+                            "stage": f"第{i + 1}张幻灯片图片添加结果: {'成功' if success else '失败'}",
+                        },
                     )
                     if success:
                         images_processed += 1
-                        self.logger.log_pipeline_step(
-                            session_id=session_id,
-                            step="slide_image_processed",
-                            details={
-                                "slide_index": i + 1,
-                                "slide_title": slide_data.title,
-                                "image_path": str(image_path),
-                                "stage": f"第{i+1}张幻灯片图片处理完成"
-                            }
-                        )
                     else:
                         images_failed += 1
-                        self.logger.log_pipeline_step(
-                            session_id=session_id,
-                            step="slide_image_failed",
-                            details={
-                                "slide_index": i + 1,
-                                "slide_title": slide_data.title,
-                                "image_path": str(image_path),
-                                "stage": f"第{i+1}张幻灯片图片处理失败"
-                            }
-                        )
                 else:
                     self.logger.log_pipeline_step(
                         session_id=session_id,
@@ -213,33 +211,13 @@ class PPTXExporter:
                         details={
                             "slide_index": i + 1,
                             "slide_title": slide_data.title,
-                            "stage": f"第{i+1}张幻灯片无图片"
-                        }
+                            "stage": f"第{i + 1}张幻灯片无图片",
+                        },
                     )
 
-  
             buffer = BytesIO()
-            # Fix encoding issue for Chinese characters
-            import tempfile
-            import os
-            
-            # First save to a temporary file to handle encoding properly
-            with tempfile.NamedTemporaryFile(suffix='.pptx', delete=False) as temp_file:
-                temp_path = temp_file.name
-            
-            try:
-                # Save to temp file first
-                prs.save(temp_path)
-                
-                # Read from temp file into buffer
-                with open(temp_path, 'rb') as f:
-                    buffer.write(f.read())
-                
-                buffer.seek(0)
-            finally:
-                # Clean up temp file
-                if os.path.exists(temp_path):
-                    os.unlink(temp_path)
+            prs.save(buffer)
+            buffer.seek(0)
             filename = self._filename(project)
 
             self.logger.log_response(
@@ -250,51 +228,44 @@ class PPTXExporter:
                     "total_slides": len(project.slides),
                     "images_processed": images_processed,
                     "images_failed": images_failed,
-                    "success_rate": images_processed / len(project.slides) if project.slides else 0
+                    "success_rate": images_processed / len(project.slides) if project.slides else 0,
+                    "pptx_bytes": buffer.getbuffer().nbytes,
                 },
-                success=True
+                success=True,
             )
 
             return filename, buffer
 
-        except Exception as e:
+        except Exception as exc:
             self.logger.log_response(
                 session_id=session_id,
                 stage="pptx_export_error",
                 data={
-                    "error": str(e),
-                    "error_type": type(e).__name__,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
                     "images_processed": images_processed,
-                    "images_failed": images_failed
+                    "images_failed": images_failed,
                 },
-                success=False
+                success=False,
             )
             raise
 
     def _resolve_image_path(self, image_url: str | None) -> Path | None:
         if not image_url:
             return None
-            
-        # 1. 移除可能存在的 http 前缀 (如果前端传的是完整URL)
+
         if "://" in image_url:
-            # 从URL中提取 assets/ 后面的部分
             if "assets/" in image_url:
                 file_name = image_url.split("assets/", 1)[1]
                 return self.image_dir / file_name
-            else:
-                return None
+            return None
 
         sanitized = image_url.lstrip("/")
-        
-        # 2. 标准处理 assets 路径
         if sanitized.startswith("assets/"):
             file_name = sanitized.split("assets/", 1)[1]
             return self.image_dir / file_name
-            
-        # 3. 如果直接传了文件名，检查是否存在
         if (self.image_dir / sanitized).exists():
             return self.image_dir / sanitized
-
         return Path(sanitized)
 
     def _filename(self, project: ProjectState) -> str:

@@ -58,6 +58,7 @@ export interface ProjectState {
   template_id?: string;
   template_style_prompt?: string;
   title?: string;
+  aspect_ratio?: string;
   slides: SlideData[];
 }
 

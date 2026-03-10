@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 from typing import List
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from ..dependencies import get_style_analyzer, get_template_store
@@ -12,6 +13,7 @@ from ..schemas.template import (
     TemplateCreate,
     TemplateListResponse,
     TemplateSaveResponse,
+    TemplateUpdate,
 )
 from ..utils.logger import get_logger
 
@@ -125,33 +127,7 @@ async def analyze_template_stream(
             # LLM分析阶段
             yield f"data: {json.dumps({'type': 'progress', 'message': '正在调用AI进行视觉风格分析...'}, ensure_ascii=False)}\n\n"
             
-            # 调用原有的分析器，这里会出现I/O错误，但我们通过try-catch处理
-            try:
-                style_prompt = await analyzer.build_prompt(valid_files)
-            except Exception as analyze_error:
-                # 如果出现文件读取错误，使用一个默认的风格提示词
-                yield f"data: {json.dumps({'type': 'progress', 'message': '文件读取出现问题，使用默认风格提示...'}, ensure_ascii=False)}\n\n"
-                style_prompt = """基于模板图片的视觉风格分析：
-
-### 1. 配色/材质 (Color & Material)
-* **主色调**：现代简约风格，以中性色调为主
-* **辅助色**：适当使用对比色增强视觉效果
-* **质感**：干净整洁，具有现代设计感
-
-### 2. 构图/层次 (Composition & Layers)
-* **画幅**：16:9 横向宽幅构图
-* **布局**：中心构图，主体突出
-* **层次**：清晰的空间层次关系
-
-### 3. 画面细节 (Details)
-* **清晰度**：高分辨率渲染
-* **风格**：现代简约主义设计
-* **表现**：强调细节和质感
-
-### 4. 作图注意事项
-* 保持画面简洁清晰
-* 避免过多装饰元素
-* 确保文字可读性"""
+            style_prompt = await analyzer.build_prompt(valid_files)
             
             # 分块发送风格提示词
             yield f"data: {json.dumps({'type': 'chunk_start', 'message': '开始生成风格提示词...'}, ensure_ascii=False)}\n\n"
@@ -236,6 +212,18 @@ async def save_template(
     store=Depends(get_template_store),
 ):
     template = store.save_template(payload)
+    return TemplateSaveResponse(template=template)
+
+
+@router.put("/{template_id}", response_model=TemplateSaveResponse)
+async def update_template(
+    template_id: UUID,
+    payload: TemplateUpdate,
+    store=Depends(get_template_store),
+):
+    template = store.update_template(template_id, payload)
+    if template is None:
+        raise HTTPException(status_code=404, detail="Template not found")
     return TemplateSaveResponse(template=template)
 
 

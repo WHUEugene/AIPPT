@@ -1,8 +1,20 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Sparkles, Wand2, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
+import {
+  FileText,
+  Sparkles,
+  Wand2,
+  CheckCircle,
+  AlertCircle,
+  ArrowRight,
+  Trash2,
+  Image,
+  AlignLeft,
+  Type,
+  ListOrdered
+} from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { generateOutline, generateOutlineStream, type StreamMessage } from '../services/api';
+import { generateOutlineStream, type StreamMessage } from '../services/api';
 import { useProjectStore } from '../store/useProjectStore';
 import type { SlideData } from '../services/types';
 import { generateId } from '../utils/uuid';
@@ -17,10 +29,46 @@ export default function ContentInput() {
   const [error, setError] = useState<string | null>(null);
   const [streamMessages, setStreamMessages] = useState<StreamMessage[]>([]);
   const [generatedSlides, setGeneratedSlides] = useState<SlideData[]>([]);
+  const [revisionNotes, setRevisionNotes] = useState('');
 
   const handleGenerate = async () => {
-    if (!text) return;
-    
+    const baseContent = text.trim();
+    const revisionContent = revisionNotes.trim();
+    const previousSlides = generatedSlides.length
+      ? [...generatedSlides].sort((a, b) => a.page_num - b.page_num)
+      : [];
+
+    const outlineContext = previousSlides.length
+      ? previousSlides
+          .map((slide) => {
+            const typeLabel = slide.type === 'cover' ? '封面页' : slide.type === 'ending' ? '结束页' : '内容页';
+            const visualText = slide.visual_desc?.trim() ? slide.visual_desc : '（暂无图像描述）';
+            const contentText = slide.content_text?.trim() ? slide.content_text : '（暂无正文内容）';
+            return [
+              `第${slide.page_num}页（${typeLabel}）`,
+              `标题：${slide.title || '未命名'}`,
+              `文字要点：${contentText}`,
+              `图像描述：${visualText}`
+            ].join('\n');
+          })
+          .join('\n\n')
+      : '';
+
+    const promptSections: string[] = [];
+    if (baseContent) {
+      promptSections.push(`【原始文档】\n${baseContent}`);
+    }
+    if (outlineContext) {
+      promptSections.push(`【上一版大纲】\n${outlineContext}`);
+    }
+    if (revisionContent) {
+      promptSections.push(`【修改意见】\n${revisionContent}`);
+    }
+
+    const promptInput = promptSections.join('\n\n');
+
+    if (!promptInput) return;
+
     setIsGenerating(true);
     setError(null);
     setStreamMessages([]);
@@ -28,7 +76,7 @@ export default function ContentInput() {
     setGeneratedSlides([]);
     
     try {
-      await generateOutlineStream(text, pageCount, currentTemplate?.id, (message) => {
+      await generateOutlineStream(promptInput, pageCount, currentTemplate?.id, (message) => {
         setStreamMessages(prev => [...prev, message]);
         
         if (message.type === 'slide' && message.slide) {
@@ -57,6 +105,35 @@ export default function ContentInput() {
       setIsGenerating(false);
     }
   };
+
+  const handleSlideFieldChange = (
+    slideId: string,
+    field: keyof Pick<SlideData, 'title' | 'content_text' | 'visual_desc'>,
+    value: string
+  ) => {
+    setGeneratedSlides(prev => {
+      const updated = prev.map(slide =>
+        slide.id === slideId ? { ...slide, [field]: value } : slide
+      );
+      setSlides(updated);
+      return updated;
+    });
+  };
+
+  const handleDeleteSlide = (slideId: string) => {
+    setGeneratedSlides(prev => {
+      const filtered = prev
+        .filter(slide => slide.id !== slideId)
+        .map((slide, index) => ({ ...slide, page_num: index + 1 }));
+      setSlides(filtered);
+      return filtered;
+    });
+  };
+
+  const sortedSlides = useMemo(
+    () => [...generatedSlides].sort((a, b) => a.page_num - b.page_num),
+    [generatedSlides]
+  );
 
   const renderMessage = (message: StreamMessage, index: number) => {
     switch (message.type) {
@@ -172,11 +249,26 @@ export default function ContentInput() {
             />
           </div>
 
+          <div className="mt-4">
+            <label className="text-sm font-bold text-gray-700 flex items-center mb-2">
+              <ListOrdered className="w-4 h-4 mr-2" />
+              修改意见（可选）
+            </label>
+            <textarea
+              className="w-full min-h-[120px] p-4 border border-gray-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm leading-relaxed"
+              placeholder="针对已生成的大纲补充要求、提出修改意见或强调重点，LLM 会结合这些说明重新生成。"
+              value={revisionNotes}
+              onChange={(e) => setRevisionNotes(e.target.value)}
+              disabled={isGenerating}
+            />
+            <p className="text-xs text-gray-500 mt-1">可在初稿生成后继续输入优化建议，再次点击生成即可获得更新版本。</p>
+          </div>
+
           <div className="mt-6 flex gap-3">
             <Button 
               className="flex-1 py-3 text-lg" 
               onClick={handleGenerate} 
-              disabled={!text || isGenerating}
+              disabled={(text.trim() === '' && revisionNotes.trim() === '') || isGenerating}
             >
               {isGenerating ? (
                 <span className="flex items-center">
@@ -238,21 +330,97 @@ export default function ContentInput() {
           </div>
           
           {/* 滚动区域 */}
-          <div className="flex-1 overflow-y-auto">
-            {!isGenerating && streamMessages.length === 0 && (
-              <div className="flex items-center justify-center h-full text-gray-400">
-                <div className="text-center">
-                  <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>输入内容并点击"AI 生成大纲"</p>
-                  <p className="text-sm mt-2">生成过程将实时显示在这里</p>
+          <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+            <div>
+              {!isGenerating && streamMessages.length === 0 && (
+                <div className="flex items-center justify-center h-48 text-gray-400 border border-dashed border-gray-200 rounded-lg">
+                  <div className="text-center px-6">
+                    <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>输入内容并点击"AI 生成大纲"</p>
+                    <p className="text-sm mt-2">生成过程将实时显示在这里</p>
+                  </div>
                 </div>
+              )}
+
+              {streamMessages.length > 0 && (
+                <div className="space-y-2">
+                  {streamMessages.map((message, index) => renderMessage(message, index))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h4 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                    <AlignLeft className="w-4 h-4 text-blue-500" /> 页面大纲详情
+                  </h4>
+                  <p className="text-xs text-gray-500">查看每一页计划输出的文字与图像描述，可直接编辑或删除。</p>
+                </div>
+                {generatedSlides.length > 0 && (
+                  <span className="text-xs text-gray-500">共 {generatedSlides.length} 页</span>
+                )}
               </div>
-            )}
 
-            {streamMessages.map((message, index) => renderMessage(message, index))}
+              {sortedSlides.length === 0 ? (
+                <div className="border border-dashed border-gray-200 rounded-lg p-6 text-center text-gray-400">
+                  尚未生成可编辑的大纲，生成后可在此修改每页内容。
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {sortedSlides.map((slide) => (
+                    <div key={slide.id} className="border border-gray-200 rounded-xl p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide">第 {slide.page_num} 页 · {slide.type === 'cover' ? '封面' : slide.type === 'ending' ? '结束' : '内容'}</p>
+                          <input
+                            className="w-full mt-1 text-lg font-semibold text-gray-900 bg-transparent border-b border-transparent focus:border-blue-400 focus:outline-none"
+                            value={slide.title}
+                            onChange={(e) => handleSlideFieldChange(slide.id, 'title', e.target.value)}
+                          />
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500"
+                          onClick={() => handleDeleteSlide(slide.id)}
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" /> 删除
+                        </Button>
+                      </div>
+
+                      <div className="mt-4 space-y-4">
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase flex items-center gap-2 mb-2">
+                            <Type className="w-3.5 h-3.5" /> 文字内容
+                          </label>
+                          <textarea
+                            className="w-full p-3 border border-gray-200 rounded-lg text-sm text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            rows={3}
+                            value={slide.content_text}
+                            onChange={(e) => handleSlideFieldChange(slide.id, 'content_text', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase flex items-center gap-2 mb-2">
+                            <Image className="w-3.5 h-3.5" /> 图像描述
+                          </label>
+                          <textarea
+                            className="w-full p-3 border border-gray-200 rounded-lg text-sm text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            rows={3}
+                            value={slide.visual_desc}
+                            onChange={(e) => handleSlideFieldChange(slide.id, 'visual_desc', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          </div>
+        </div>
       </div>
     </div>
   );

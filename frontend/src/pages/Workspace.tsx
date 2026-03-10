@@ -6,13 +6,15 @@ import { SlideCanvas } from '../components/workspace/SlideCanvas';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { AspectRatioSelector } from '../components/ui/AspectRatioSelector';
-import { generateSlide, exportPptx, batchGenerateSlides, getBatchStatus } from '../services/api';
-import type { SlideData, BatchGenerateResult, SlideStatus, CustomDimensions } from '../services/types';
+import { generateSlide, exportPptx, batchGenerateSlides } from '../services/api';
+import type { SlideStatus, CustomDimensions } from '../services/types';
 import { useProjectStore } from '../store/useProjectStore';
 
 export default function Workspace() {
+  const MAX_CONCURRENT_REGENERATIONS = 3;
   const navigate = useNavigate();
-  const location = useLocation<{ autoGenerate?: boolean }>();
+  const location = useLocation();
+  const locationState = location.state as { autoGenerate?: boolean } | null;
   const {
     slides,
     currentSlideId,
@@ -23,7 +25,10 @@ export default function Workspace() {
     projectId,
     saveCurrentProject,
   } = useProjectStore();
-  const [regenerating, setRegenerating] = useState(false);
+  const [regeneratingSlideIds, setRegeneratingSlideIds] = useState<string[]>([]);
+  const regeneratingSlideIdsRef = useRef<string[]>([]);
+  const regenerationMessageTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [regenerationMessage, setRegenerationMessage] = useState<string>('');
   const [exporting, setExporting] = useState(false);
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [batchProgress, setBatchProgress] = useState<string>('');
@@ -44,6 +49,43 @@ export default function Workspace() {
   const currentSlide = useMemo(() => {
     return slides.find((slide) => slide.id === currentSlideId) || slides[0] || null;
   }, [slides, currentSlideId]);
+  const activeRegenerationSlides = useMemo(
+    () => slides.filter((slide) => regeneratingSlideIds.includes(slide.id)),
+    [slides, regeneratingSlideIds]
+  );
+  const isCurrentSlideRegenerating = currentSlide ? regeneratingSlideIds.includes(currentSlide.id) : false;
+
+  const syncRegenerationIds = (nextIds: string[]) => {
+    regeneratingSlideIdsRef.current = nextIds;
+    setRegeneratingSlideIds(nextIds);
+  };
+
+  const tryStartRegeneration = (slideId: string) => {
+    const currentIds = regeneratingSlideIdsRef.current;
+    if (currentIds.includes(slideId)) {
+      return false;
+    }
+    if (currentIds.length >= MAX_CONCURRENT_REGENERATIONS) {
+      return false;
+    }
+    syncRegenerationIds([...currentIds, slideId]);
+    return true;
+  };
+
+  const finishRegeneration = (slideId: string) => {
+    const nextIds = regeneratingSlideIdsRef.current.filter((id) => id !== slideId);
+    syncRegenerationIds(nextIds);
+  };
+
+  const showRegenerationMessage = (message: string) => {
+    if (regenerationMessageTimerRef.current) {
+      clearTimeout(regenerationMessageTimerRef.current);
+    }
+    setRegenerationMessage(message);
+    regenerationMessageTimerRef.current = setTimeout(() => {
+      setRegenerationMessage('');
+    }, 4000);
+  };
 
   // 批量生成所有图片
   const handleBatchGenerate = async () => {
@@ -83,7 +125,7 @@ export default function Workspace() {
           visual_desc: slide.visual_desc,
         })),
         style_prompt: currentTemplate.style_prompt,
-        // 不传max_workers，让后端使用智能逻辑：最少10个，最多等于幻灯片数量
+        max_workers: slides.length,
         aspect_ratio: aspectRatioToUse
       });
 
@@ -129,7 +171,7 @@ export default function Workspace() {
 
   // 跳转自大纲页时自动批量生成（仅触发一次）
   useEffect(() => {
-    const shouldAutoGenerate = location.state?.autoGenerate;
+    const shouldAutoGenerate = locationState?.autoGenerate;
     if (!shouldAutoGenerate || autoBatchTriggeredRef.current) {
       return;
     }
@@ -147,7 +189,7 @@ export default function Workspace() {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [location.state, slides, currentTemplate, batchGenerating]);
+  }, [locationState, slides, currentTemplate, batchGenerating]);
 
   // 自动保存功能：编辑后5分钟自动保存
   useEffect(() => {
@@ -200,6 +242,14 @@ export default function Workspace() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [lastEditTime, slides]);
 
+  useEffect(() => {
+    return () => {
+      if (regenerationMessageTimerRef.current) {
+        clearTimeout(regenerationMessageTimerRef.current);
+      }
+    };
+  }, []);
+
   if (!currentSlide) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-pku-light gap-4">
@@ -214,7 +264,19 @@ export default function Workspace() {
       setError('请先选择模版');
       return;
     }
-    setRegenerating(true);
+    if (!currentSlide) {
+      return;
+    }
+    if (!tryStartRegeneration(currentSlide.id)) {
+      setError(
+        regeneratingSlideIdsRef.current.includes(currentSlide.id)
+          ? `第 ${currentSlide.page_num} 页正在重绘中`
+          : `最多同时重绘 ${MAX_CONCURRENT_REGENERATIONS} 张图片`
+      );
+      return;
+    }
+
+    updateSlide(currentSlide.id, { status: 'generating' });
     setError(null);
     try {
       // 使用选中的比例，如果是自定义则使用计算出的比例
@@ -235,11 +297,13 @@ export default function Workspace() {
         final_prompt: resp.final_prompt,
         status: resp.status,
       });
+      showRegenerationMessage(`第 ${currentSlide.page_num} 页重绘完成`);
     } catch (err) {
       console.error(err);
-      setError('重绘失败，请确认后端绘图接口已启动');
+      updateSlide(currentSlide.id, { status: 'error' });
+      setError(`第 ${currentSlide.page_num} 页重绘失败，请确认后端绘图接口已启动`);
     } finally {
-      setRegenerating(false);
+      finishRegeneration(currentSlide.id);
     }
   };
 
@@ -251,6 +315,7 @@ export default function Workspace() {
         template_id: currentTemplate?.id,
         template_style_prompt: currentTemplate?.style_prompt,
         title: projectTitle,
+        aspect_ratio: selectedAspectRatio === 'custom' ? customDimensions.aspectRatio : selectedAspectRatio,
         slides,
       };
       
@@ -296,11 +361,21 @@ export default function Workspace() {
         >
           <div className="aspect-video bg-gray-100 rounded overflow-hidden relative">
             {slide.image_url ? (
-              <img 
-                src={slide.image_url} 
-                alt={`第${slide.page_num}页`}
-                className="w-full h-full object-cover"
-              />
+              <>
+                <img 
+                  src={slide.image_url} 
+                  alt={`第${slide.page_num}页`}
+                  className="w-full h-full object-cover"
+                />
+                {regeneratingSlideIds.includes(slide.id) && (
+                  <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-1 text-white">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-[10px] font-medium">重绘中</span>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">
                 {slide.status === 'generating' ? (
@@ -324,6 +399,36 @@ export default function Workspace() {
 
   const canvas = (
     <div className="w-full flex flex-col items-center gap-6">
+      {(activeRegenerationSlides.length > 0 || regenerationMessage) && (
+        <div className="w-full max-w-2xl p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                {activeRegenerationSlides.length > 0 ? (
+                  <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1"></div>
+                )}
+                <span className="text-sm font-medium text-amber-900">
+                  {activeRegenerationSlides.length > 0
+                    ? `正在重绘 ${activeRegenerationSlides.length}/${MAX_CONCURRENT_REGENERATIONS} 张图片`
+                    : regenerationMessage}
+                </span>
+              </div>
+              {activeRegenerationSlides.length > 0 && (
+                <div className="text-xs text-amber-800">
+                  {activeRegenerationSlides.map((slide) => `第 ${slide.page_num} 页`).join('、')}
+                </div>
+              )}
+              {regenerationMessage && activeRegenerationSlides.length > 0 && (
+                <div className="text-xs text-amber-700">{regenerationMessage}</div>
+              )}
+            </div>
+            <span className="text-xs text-amber-700 whitespace-nowrap">可继续切换页面重绘其他图片</span>
+          </div>
+        </div>
+      )}
+
       {batchProgress && (
         <div className="w-full max-w-2xl p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-center gap-2">
@@ -335,17 +440,20 @@ export default function Workspace() {
       
       <SlideCanvas
         imageUrl={currentSlide.image_url}
-        isLoading={regenerating && !currentSlide.image_url}
+        isLoading={isCurrentSlideRegenerating && !currentSlide.image_url}
       />
       
       <div className="flex gap-4">
-        <Button onClick={handleRegenerate} disabled={regenerating || batchGenerating}>
-          <RefreshCcw className="w-4 h-4 mr-2" /> {regenerating ? '正在重绘...' : '重新生成图片'}
+        <Button
+          onClick={handleRegenerate}
+          disabled={batchGenerating || isCurrentSlideRegenerating || regeneratingSlideIds.length >= MAX_CONCURRENT_REGENERATIONS}
+        >
+          <RefreshCcw className="w-4 h-4 mr-2" /> {isCurrentSlideRegenerating ? '当前页重绘中...' : '重新生成图片'}
         </Button>
         
         <Button 
           onClick={handleBatchGenerate} 
-          disabled={batchGenerating || regenerating || !currentTemplate}
+          disabled={batchGenerating || regeneratingSlideIds.length > 0 || !currentTemplate}
           variant="outline"
         >
           <Play className="w-4 h-4 mr-2" /> 
@@ -443,15 +551,19 @@ export default function Workspace() {
           selectedRatio={selectedAspectRatio}
           onRatioChange={setSelectedAspectRatio}
           onCustomDimensionsChange={setCustomDimensions}
-          disabled={batchGenerating || regenerating}
+          disabled={batchGenerating}
         />
         <p className="text-xs text-gray-500 mt-2">
           💡 提示：选择合适的比例会影响图片生成的最终尺寸和布局
         </p>
       </section>
 
-      <Button className="w-full" onClick={handleRegenerate} disabled={regenerating}>
-        <RefreshCcw className="w-4 h-4 mr-2" /> 更新并重绘
+      <Button
+        className="w-full"
+        onClick={handleRegenerate}
+        disabled={batchGenerating || isCurrentSlideRegenerating || regeneratingSlideIds.length >= MAX_CONCURRENT_REGENERATIONS}
+      >
+        <RefreshCcw className="w-4 h-4 mr-2" /> {isCurrentSlideRegenerating ? '当前页重绘中...' : '更新并重绘'}
       </Button>
     </div>
   );

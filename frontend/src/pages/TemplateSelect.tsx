@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, ImagePlus, Loader2, Pencil, Plus } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { fetchTemplates } from '../services/api';
+import { fetchTemplates, generateSlide, updateTemplate } from '../services/api';
 import type { Template } from '../services/types';
 import { useProjectStore } from '../store/useProjectStore';
 
@@ -33,8 +33,9 @@ const fallbackTemplates: Template[] = [
 
 export default function TemplateSelect() {
   const navigate = useNavigate();
-  const { templates, setTemplates, setCurrentTemplate } = useProjectStore();
+  const { templates, setTemplates, setCurrentTemplate, upsertTemplate, currentTemplate } = useProjectStore();
   const [loading, setLoading] = useState(false);
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -62,6 +63,61 @@ export default function TemplateSelect() {
   const handleSelect = (template: Template) => {
     setCurrentTemplate(template);
     navigate('/input');
+  };
+
+  const handleEdit = (event: React.MouseEvent, templateId: string) => {
+    event.stopPropagation();
+    navigate(`/templates/${templateId}/edit`);
+  };
+
+  const handleGeneratePreview = async (event: React.MouseEvent, template: Template) => {
+    event.stopPropagation();
+    if (previewLoadingId) {
+      return;
+    }
+
+    setError(null);
+    setPreviewLoadingId(template.id);
+
+    try {
+      const response = await generateSlide({
+        style_prompt: template.style_prompt,
+        visual_desc: '一张高完成度的 PPT 模板封面预览图，突出该模板的配色、排版秩序、背景材质、主标题区和视觉焦点，用于模板选择页展示。',
+        aspect_ratio: '16:9',
+        page_num: 1,
+        title: template.name,
+        content_text: '模板预览',
+      });
+
+      const updatedTemplate: Template = {
+        ...template,
+        cover_image: response.image_url,
+      };
+
+      try {
+        await updateTemplate(template.id, {
+          name: template.name,
+          style_prompt: template.style_prompt,
+          cover_image: response.image_url,
+          vis_settings: template.vis_settings,
+          aspect_ratios: template.aspect_ratios,
+          default_aspect_ratio: template.default_aspect_ratio,
+          custom_dimensions: template.custom_dimensions,
+        });
+      } catch (err) {
+        console.warn('Update template preview failed, fallback to local record', err);
+      }
+
+      upsertTemplate(updatedTemplate);
+      if (currentTemplate?.id === updatedTemplate.id) {
+        setCurrentTemplate(updatedTemplate);
+      }
+    } catch (err) {
+      console.error(err);
+      setError('模板示例图生成失败，请确认后端绘图接口已启动');
+    } finally {
+      setPreviewLoadingId(null);
+    }
   };
 
   return (
@@ -102,17 +158,54 @@ export default function TemplateSelect() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-gray-400 font-serif text-4xl opacity-20">
-                    Aa
+                  <div
+                    className="absolute inset-0 flex flex-col items-center justify-center text-white p-5 text-center"
+                    style={{
+                      background: `linear-gradient(135deg, ${template.vis_settings?.primary_color || '#8B0012'} 0%, #1f2937 100%)`,
+                    }}
+                  >
+                    <div className="text-xs uppercase tracking-[0.25em] opacity-70 mb-2">Template</div>
+                    <div className="font-serif text-2xl leading-tight">{template.name}</div>
+                    <div className="text-xs mt-3 opacity-80 line-clamp-3">{template.style_prompt}</div>
                   </div>
                 )}
+                <div className="absolute top-3 right-3 flex gap-2">
+                  {!template.cover_image && (
+                    <button
+                      type="button"
+                      className="h-8 px-3 rounded-md bg-white/90 text-gray-700 text-xs font-medium shadow-sm hover:bg-white"
+                      onClick={(event) => handleGeneratePreview(event, template)}
+                    >
+                      {previewLoadingId === template.id ? (
+                        <span className="flex items-center">
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" /> 生成中
+                        </span>
+                      ) : (
+                        <span className="flex items-center">
+                          <ImagePlus className="w-3 h-3 mr-1" /> 示例图
+                        </span>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="h-8 w-8 rounded-md bg-white/90 text-gray-700 flex items-center justify-center shadow-sm hover:bg-white"
+                    onClick={(event) => handleEdit(event, template.id)}
+                    aria-label={`编辑${template.name}`}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                </div>
                 <div
                   className="absolute bottom-0 left-0 w-full h-2"
                   style={{ backgroundColor: template.vis_settings?.primary_color || '#8B0012' }}
                 />
               </div>
               <div className="p-4 bg-white">
-                <h3 className="font-serif font-bold text-lg mb-1">{template.name}</h3>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-serif font-bold text-lg mb-1">{template.name}</h3>
+                  {!template.cover_image && <span className="text-[10px] text-amber-600 whitespace-nowrap">无封面图</span>}
+                </div>
                 <p className="text-xs text-gray-500 line-clamp-2">{template.style_prompt}</p>
               </div>
             </Card>

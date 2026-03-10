@@ -43,6 +43,8 @@ class ConfigManager:
             llm_api_key=os.getenv("LLM_API_KEY", ""),
             llm_api_base=os.getenv("LLM_API_BASE", "https://openrouter.ai/api/v1"),
             llm_chat_model=os.getenv("LLM_CHAT_MODEL", "google/gemini-3-pro-preview"),
+            llm_image_api_key=os.getenv("LLM_IMAGE_API_KEY", ""),
+            llm_image_api_base=os.getenv("LLM_IMAGE_API_BASE", ""),
             llm_image_model=os.getenv("LLM_IMAGE_MODEL", "google/gemini-3-pro-image-preview"),
             llm_timeout_seconds=int(os.getenv("LLM_TIMEOUT_SECONDS", "120")),
             
@@ -190,7 +192,12 @@ class ConfigManager:
                     
                     # 保留所有配置，但确保API Key为空
                     template_config['llm_api_key'] = ""
+                    template_config['llm_image_api_key'] = current_config.get('llm_image_api_key', "")
+                    template_config['llm_image_api_base'] = current_config.get('llm_image_api_base', "")
                     template_config['project_name'] = current_config.get('project_name', self._default_config.project_name)
+                    template_config['llm_api_base'] = current_config.get('llm_api_base', self._default_config.llm_api_base)
+                    template_config['llm_chat_model'] = current_config.get('llm_chat_model', self._default_config.llm_chat_model)
+                    template_config['llm_image_model'] = current_config.get('llm_image_model', self._default_config.llm_image_model)
                     template_config['llm_timeout_seconds'] = current_config.get('llm_timeout_seconds', self._default_config.llm_timeout_seconds)
                     template_config['image_output_dir'] = current_config.get('image_output_dir', self._default_config.image_output_dir)
                     template_config['pptx_output_dir'] = current_config.get('pptx_output_dir', self._default_config.pptx_output_dir)
@@ -293,6 +300,12 @@ class ConfigManager:
         elif not (config.llm_api_base.startswith('http://') or 
                  config.llm_api_base.startswith('https://')):
             errors.append("API基础地址必须以http://或https://开头")
+
+        if config.llm_image_api_base.strip() and not (
+            config.llm_image_api_base.startswith('http://') or
+            config.llm_image_api_base.startswith('https://')
+        ):
+            errors.append("图像API基础地址必须以http://或https://开头")
         
         # 检查超时时间
         if config.llm_timeout_seconds < 30 or config.llm_timeout_seconds > 300:

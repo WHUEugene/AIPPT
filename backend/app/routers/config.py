@@ -5,7 +5,7 @@ from typing import Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ..dependencies import get_llm_client
+from ..dependencies import clear_dependency_caches, get_llm_client
 from ..schemas.config import (
     AppConfig,
     ConfigUpdateRequest,
@@ -73,6 +73,7 @@ async def update_config(request: ConfigUpdateRequest):
         
         # 更新配置
         if config_manager.update_config(updates):
+            clear_dependency_caches()
             new_config = config_manager.get_config(force_reload=True)
             
             # 记录配置更新
@@ -112,6 +113,7 @@ async def reset_config():
         config_manager = get_config_manager()
         
         if config_manager.reset_to_default():
+            clear_dependency_caches()
             new_config = config_manager.get_config(force_reload=True)
             logger.logger.info("配置已重置为默认值")
             return new_config

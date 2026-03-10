@@ -13,6 +13,7 @@ interface ProjectStore {
   
   setTemplates: (templates: Template[]) => void;
   addTemplate: (template: Template) => void;
+  upsertTemplate: (template: Template) => void;
   setCurrentTemplate: (template: Template | null) => void;
   setSlides: (slides: SlideData[]) => void;
   selectSlide: (id: string | null) => void;
@@ -35,6 +36,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   
   setTemplates: (templates) => set({ templates }),
   addTemplate: (template) => set((state) => ({ templates: [...state.templates, template] })),
+  upsertTemplate: (template) =>
+    set((state) => {
+      const exists = state.templates.some((item) => item.id === template.id);
+      return {
+        templates: exists
+          ? state.templates.map((item) => (item.id === template.id ? template : item))
+          : [...state.templates, template],
+        currentTemplate: state.currentTemplate?.id === template.id ? template : state.currentTemplate,
+      };
+    }),
   setCurrentTemplate: (template) => set({ currentTemplate: template }),
   setSlides: (slides) => set({ slides, currentSlideId: slides[0]?.id ?? null }),
   selectSlide: (id) => set({ currentSlideId: id }),

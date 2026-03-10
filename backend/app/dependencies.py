@@ -35,11 +35,22 @@ def get_template_store() -> TemplateStore:
 
 @lru_cache
 def get_llm_client() -> OpenRouterClient:
-    """LLM客户端实例"""
+    """文本LLM客户端实例"""
     config = get_app_config()
     return OpenRouterClient(
         api_key=config.llm_api_key,
         base_url=config.llm_api_base,
+        timeout_seconds=config.llm_timeout_seconds,
+    )
+
+
+@lru_cache
+def get_image_llm_client() -> OpenRouterClient:
+    """图像LLM客户端实例"""
+    config = get_app_config()
+    return OpenRouterClient(
+        api_key=config.resolved_image_api_key(),
+        base_url=config.resolved_image_api_base(),
         timeout_seconds=config.llm_timeout_seconds,
     )
 
@@ -69,7 +80,7 @@ def get_image_generator() -> ImageGenerator:
     config = get_app_config()
     return ImageGenerator(
         output_dir=config.image_output_dir,
-        llm_client=get_llm_client(),
+        llm_client=get_image_llm_client(),
         image_model=config.llm_image_model,
     )
 
@@ -81,8 +92,19 @@ def get_pptx_exporter() -> PPTXExporter:
     return PPTXExporter(config.pptx_output_dir, config.image_output_dir)
 
 
+def clear_dependency_caches() -> None:
+    """配置更新后清理依赖缓存，确保新的网关配置立即生效。"""
+    get_llm_client.cache_clear()
+    get_image_llm_client.cache_clear()
+    get_style_analyzer.cache_clear()
+    get_outline_generator.cache_clear()
+    get_image_generator.cache_clear()
+    get_pptx_exporter.cache_clear()
+
+
 __all__ = [
     "get_image_generator",
+    "get_image_llm_client",
     "get_llm_client",
     "get_outline_generator",
     "get_prompt_builder",
@@ -90,4 +112,5 @@ __all__ = [
     "get_settings",
     "get_style_analyzer",
     "get_template_store",
+    "clear_dependency_caches",
 ]

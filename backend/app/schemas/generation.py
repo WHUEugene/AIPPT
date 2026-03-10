@@ -31,7 +31,7 @@ class BatchGenerateRequest(BaseModel):
     """批量生成幻灯片的请求"""
     slides: List[SlideData]  # 幻灯片数据列表
     style_prompt: str  # 统一的风格提示词
-    max_workers: int = Field(default=5, ge=1, le=100)  # 最大并发数，默认5，最大100
+    max_workers: Optional[int] = Field(default=None, ge=1, le=100)  # 留空时按图片数量并发
     aspect_ratio: str = Field(default="16:9", pattern=r"^\d{1,2}:\d{1,2}$")
 
 

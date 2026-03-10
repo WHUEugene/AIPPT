@@ -14,6 +14,7 @@ export default function App() {
         <Route path="/" element={<Welcome />} />
         <Route path="/templates" element={<TemplateSelect />} />
         <Route path="/create-template" element={<TemplateCreate />} />
+        <Route path="/templates/:templateId/edit" element={<TemplateCreate />} />
         <Route path="/input" element={<ContentInput />} />
         <Route path="/workspace" element={<Workspace />} />
         <Route path="/history" element={<History />} />

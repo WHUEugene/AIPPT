@@ -197,9 +197,10 @@ async def batch_generate_slides(
         BatchGenerateResponse: 批量生成结果，包含所有幻灯片的生成状态
     """
     logger = get_logger()
+    requested_workers = payload.max_workers or len(payload.slides)
     
     # 验证并发数不超过配置限制
-    if payload.max_workers > settings.batch_max_workers:
+    if requested_workers > settings.batch_max_workers:
         raise HTTPException(
             status_code=400,
             detail=f"max_workers exceeds maximum allowed: {settings.batch_max_workers}"
@@ -209,7 +210,7 @@ async def batch_generate_slides(
     session_id = logger.start_session(
         "/slide/batch/generate",
         total_slides=len(payload.slides),
-        max_workers=payload.max_workers,
+        max_workers=requested_workers,
         aspect_ratio=payload.aspect_ratio,
         style_prompt_length=len(payload.style_prompt)
     )
@@ -221,7 +222,7 @@ async def batch_generate_slides(
             stage="batch_generate_request",
             data={
                 "slides_count": len(payload.slides),
-                "max_workers": payload.max_workers,
+                "max_workers": requested_workers,
                 "aspect_ratio": payload.aspect_ratio,
                 "style_prompt": payload.style_prompt[:500],  # 只记录前500字符
                 "slides": [
@@ -241,7 +242,7 @@ async def batch_generate_slides(
         batch_id = batch_generator.create_batch(
             slides=payload.slides,
             style_prompt=payload.style_prompt,
-            max_workers=payload.max_workers,
+            max_workers=requested_workers,
             aspect_ratio=payload.aspect_ratio
         )
         

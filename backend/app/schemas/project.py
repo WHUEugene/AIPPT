@@ -13,6 +13,7 @@ class ProjectState(BaseModel):
     template_id: Optional[str] = None  # 改为字符串类型，兼容前端
     template_style_prompt: Optional[str] = None
     title: Optional[str] = None
+    aspect_ratio: Optional[str] = None
     slides: list[SlideData]
 
 

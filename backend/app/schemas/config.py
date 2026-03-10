@@ -10,6 +10,8 @@ class AppConfig(BaseModel):
     llm_api_key: str = Field(..., description="LLM API密钥")
     llm_api_base: str = Field(default="https://openrouter.ai/api/v1", description="LLM API基础地址")
     llm_chat_model: str = Field(default="google/gemini-3-pro-preview", description="文本生成模型")
+    llm_image_api_key: str = Field(default="", description="图像生成API密钥，留空则复用LLM API密钥")
+    llm_image_api_base: str = Field(default="", description="图像生成API基础地址，留空则复用LLM API基础地址")
     llm_image_model: str = Field(default="google/gemini-3-pro-image-preview", description="图像生成模型")
     llm_timeout_seconds: int = Field(default=120, ge=30, le=300, description="API请求超时时间(秒)")
     
@@ -28,12 +30,20 @@ class AppConfig(BaseModel):
     project_name: str = Field(default="AI-PPT Flow Backend", description="项目名称")
     api_prefix: str = Field(default="/api", description="API路由前缀")
 
+    def resolved_image_api_key(self) -> str:
+        return self.llm_image_api_key.strip() or self.llm_api_key.strip()
+
+    def resolved_image_api_base(self) -> str:
+        return self.llm_image_api_base.strip() or self.llm_api_base.strip()
+
 
 class ConfigUpdateRequest(BaseModel):
     """配置更新请求模型"""
     llm_api_key: Optional[str] = Field(None, description="LLM API密钥")
     llm_api_base: Optional[str] = Field(None, description="LLM API基础地址")
     llm_chat_model: Optional[str] = Field(None, description="文本生成模型")
+    llm_image_api_key: Optional[str] = Field(None, description="图像生成API密钥")
+    llm_image_api_base: Optional[str] = Field(None, description="图像生成API基础地址")
     llm_image_model: Optional[str] = Field(None, description="图像生成模型")
     llm_timeout_seconds: Optional[int] = Field(None, ge=30, le=300, description="API请求超时时间(秒)")
     

@@ -512,7 +512,7 @@ class OutlineGenerator:
                 }
             )
 
-        slide_count = max(1, min(slide_count, 40))
+        slide_count = max(1, min(slide_count, 50))
         segments = self._distribute(paragraphs, slide_count)
 
         slides: list[SlideData] = []

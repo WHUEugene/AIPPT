@@ -277,6 +277,8 @@ backend/data/config.json
 config.json.backup
 frontend/dist/
 frontend/.tsbuildinfo
+*.mac-backup/
+*.imported-backup/
 demo.png
 doc/prompt_samples/
 *.jpg

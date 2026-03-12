@@ -1,95 +1,157 @@
 @echo off
-REM AI-PPT 启动脚本 (Windows)
-REM 自动检测环境并启动前端和后端服务
+setlocal
 
-echo 🚀 启动 AI-PPT 系统...
+set "ROOT_DIR=%~dp0"
+if "%ROOT_DIR:~-1%"=="\" set "ROOT_DIR=%ROOT_DIR:~0,-1%"
 
-REM 检查 Node.js
-node --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo ❌ Node.js 未安装，请先安装 Node.js
-    echo 下载地址: https://nodejs.org/
+set "CONDA_ENV_NAME=aippt-win"
+set "PYTHON_VERSION=3.11"
+set "BACKEND_PORT=18000"
+set "FRONTEND_PORT=15173"
+set "BACKEND_DIR=%ROOT_DIR%\backend"
+set "FRONTEND_DIR=%ROOT_DIR%\frontend"
+set "BACKEND_LAUNCHER=%ROOT_DIR%\scripts\start-backend-window.bat"
+set "FRONTEND_LAUNCHER=%ROOT_DIR%\scripts\start-frontend-window.bat"
+set "CONDA_CMD="
+
+echo [AI-PPT] Preparing local Windows environment...
+
+if defined CONDA_EXE (
+    set "CONDA_CMD=%CONDA_EXE%"
+)
+
+if not defined CONDA_CMD (
+    for /f "delims=" %%I in ('where conda.exe 2^>nul') do if not defined CONDA_CMD set "CONDA_CMD=%%I"
+)
+
+if not defined CONDA_CMD (
+    echo [ERROR] conda.exe was not found in PATH.
+    echo Open an Anaconda Prompt or add conda.exe to PATH, then rerun this script.
     pause
     exit /b 1
 )
 
-REM 检查 Python
-python --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo ❌ Python 未安装，请先安装 Python 3.10+
-    echo 下载地址: https://www.python.org/downloads/
+where node >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Node.js was not found in PATH.
+    echo Install Node.js 18+ and rerun this script.
     pause
     exit /b 1
 )
 
-echo ✅ 环境检查通过
-
-REM 启动后端
-echo 🔧 启动后端服务...
-cd backend
-
-REM 检查虚拟环境
-if not exist "venv" (
-    echo 📦 创建 Python 虚拟环境...
-    python -m venv venv
+where npm >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] npm was not found in PATH.
+    echo Install Node.js 18+ and rerun this script.
+    pause
+    exit /b 1
 )
 
-REM 激活虚拟环境
-echo 🔌 激活虚拟环境...
-call venv\Scripts\activate.bat
-
-REM 安装依赖
-if exist "requirements.txt" (
-    echo 📦 安装 Python 依赖...
-    pip install -q -r requirements.txt
+if not exist "%BACKEND_DIR%" (
+    echo [ERROR] Missing backend directory: %BACKEND_DIR%
+    pause
+    exit /b 1
 )
 
-REM 启动后端服务 (新窗口)
-echo 🚀 启动后端服务...
-start "AI-PPT Backend" cmd /c "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload & pause"
-
-REM 等待后端启动
-echo ⏳ 等待后端服务启动...
-timeout /t 5 /nobreak >nul
-
-REM 返回项目根目录
-cd ..
-
-REM 启动前端
-echo 🚀 启动前端服务...
-cd frontend
-
-REM 安装前端依赖
-if not exist "node_modules" (
-    echo 📦 安装前端依赖...
-    npm install
+if not exist "%FRONTEND_DIR%" (
+    echo [ERROR] Missing frontend directory: %FRONTEND_DIR%
+    pause
+    exit /b 1
 )
 
-REM 启动前端开发服务器 (新窗口)
-echo 🎨 启动前端开发服务器...
-start "AI-PPT Frontend" cmd /c "npm run dev & pause"
-
-cd ..
-
-echo.
-echo 🎉 AI-PPT 系统启动完成！
-echo.
-echo 📍 服务地址:
-echo    🖥️  前端: http://localhost:5173
-echo    ⚙️  后端: http://localhost:8000
-echo    📚 API文档: http://localhost:8000/docs
-echo.
-echo 🛑 停止服务: 关闭对应的命令行窗口即可
-echo.
-
-REM 询问是否打开浏览器
-set /p open_browser="是否打开浏览器? (y/n): "
-if /i "%open_browser%"=="y" (
-    echo 🌐 正在打开浏览器...
-    start http://localhost:5173
+if not exist "%BACKEND_LAUNCHER%" (
+    echo [ERROR] Missing backend launcher: %BACKEND_LAUNCHER%
+    pause
+    exit /b 1
 )
 
+if not exist "%FRONTEND_LAUNCHER%" (
+    echo [ERROR] Missing frontend launcher: %FRONTEND_LAUNCHER%
+    pause
+    exit /b 1
+)
+
+"%CONDA_CMD%" run -n %CONDA_ENV_NAME% python --version >nul 2>&1
+if errorlevel 1 (
+    echo [AI-PPT] Creating conda environment "%CONDA_ENV_NAME%" with Python %PYTHON_VERSION%...
+    "%CONDA_CMD%" create -y -n %CONDA_ENV_NAME% python=%PYTHON_VERSION%
+    if errorlevel 1 goto :fail
+) else (
+    echo [AI-PPT] Using existing conda environment "%CONDA_ENV_NAME%".
+)
+
+if not exist "%BACKEND_DIR%\generated\images" mkdir "%BACKEND_DIR%\generated\images"
+if not exist "%BACKEND_DIR%\generated\pptx" mkdir "%BACKEND_DIR%\generated\pptx"
+
+"%CONDA_CMD%" run -n %CONDA_ENV_NAME% python -c "import fastapi, uvicorn, PIL, pptx, httpx" >nul 2>&1
+if errorlevel 1 (
+    echo [AI-PPT] Installing backend requirements into "%CONDA_ENV_NAME%"...
+    "%CONDA_CMD%" run -n %CONDA_ENV_NAME% python -m pip install --upgrade pip
+    if errorlevel 1 goto :fail
+    "%CONDA_CMD%" run -n %CONDA_ENV_NAME% python -m pip install -r "%BACKEND_DIR%\requirements.txt"
+    if errorlevel 1 goto :fail
+) else (
+    echo [AI-PPT] Backend Python dependencies already available.
+)
+
+if not exist "%FRONTEND_DIR%\node_modules\.bin\vite.cmd" (
+    echo [AI-PPT] Installing frontend dependencies...
+    pushd "%FRONTEND_DIR%"
+    call npm install
+    set "NPM_EXIT=%ERRORLEVEL%"
+    popd
+    if not "%NPM_EXIT%"=="0" goto :fail
+) else (
+    echo [AI-PPT] Frontend dependencies already available.
+)
+
+call :find_free_port BACKEND_PORT
+call :find_free_port FRONTEND_PORT
+
+echo [AI-PPT] Selected backend port: %BACKEND_PORT%
+echo [AI-PPT] Selected frontend port: %FRONTEND_PORT%
+
+set "FRONTEND_EXTRA_ARGS="
+set /p OPEN_BROWSER="Open the frontend automatically after startup? (y/n): "
+if /i "%OPEN_BROWSER%"=="y" set "FRONTEND_EXTRA_ARGS=open"
+
+echo [AI-PPT] Launching backend window...
+start "AI-PPT Backend" cmd /k ""%BACKEND_LAUNCHER%" "%BACKEND_DIR%" "%CONDA_CMD%" "%CONDA_ENV_NAME%" "%BACKEND_PORT%""
+
+echo [AI-PPT] Waiting for backend to warm up...
+timeout /t 3 /nobreak >nul
+
+echo [AI-PPT] Launching frontend window...
+start "AI-PPT Frontend" cmd /k ""%FRONTEND_LAUNCHER%" "%FRONTEND_DIR%" "%BACKEND_PORT%" "%FRONTEND_PORT%" "%FRONTEND_EXTRA_ARGS%""
+
 echo.
-echo 脚本执行完成！请保持此窗口开启，服务在独立窗口中运行。
-echo 按任意键关闭此窗口...
-pause >nul
+echo [AI-PPT] Startup windows have been launched.
+echo Backend:  http://127.0.0.1:%BACKEND_PORT%
+echo API docs: http://127.0.0.1:%BACKEND_PORT%/docs
+echo Frontend: http://127.0.0.1:%FRONTEND_PORT%
+echo The frontend window will open the correct URL if you chose auto-open.
+echo.
+echo Close the backend and frontend windows to stop the services.
+pause
+exit /b 0
+
+:fail
+echo.
+echo [ERROR] Startup preparation failed.
+echo Fix the message above and rerun start.bat.
+pause
+exit /b 1
+
+:find_free_port
+setlocal EnableDelayedExpansion
+set "PORT_VALUE=!%~1!"
+
+:find_free_port_loop
+netstat -ano | findstr /R /C:":!PORT_VALUE! .*LISTENING" >nul 2>&1
+if not errorlevel 1 (
+    set /a PORT_VALUE+=1
+    goto :find_free_port_loop
+)
+
+endlocal & set "%~1=%PORT_VALUE%"
+goto :eof

@@ -13,7 +13,7 @@ class OutlineRequest(BaseModel):
     slide_count: int = Field(
         8,
         ge=1,
-        le=40,
+        le=50,
         description="Expected number of slides in the outline.",
     )
     template_id: Optional[UUID] = None

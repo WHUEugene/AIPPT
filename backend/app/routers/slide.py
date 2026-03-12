@@ -198,13 +198,7 @@ async def batch_generate_slides(
     """
     logger = get_logger()
     requested_workers = payload.max_workers or len(payload.slides)
-    
-    # 验证并发数不超过配置限制
-    if requested_workers > settings.batch_max_workers:
-        raise HTTPException(
-            status_code=400,
-            detail=f"max_workers exceeds maximum allowed: {settings.batch_max_workers}"
-        )
+    requested_workers = min(requested_workers, settings.batch_max_workers)
     
     # 开始会话记录
     session_id = logger.start_session(

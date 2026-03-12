@@ -101,6 +101,11 @@ AI-PPT Flow 采用现代化的前后端分离架构：
 *   Node.js 18+
 *   OpenRouter API Key (支持 Gemini 3 Pro)
 
+推荐优先使用 OpenRouter 作为模型转接层，兼容性和模型切换会更省事。
+OpenRouter 官网: https://openrouter.ai/
+项目默认示例配置已经预填好 OpenRouter 的 base URL 和 Gemini 模型名，通常只需要填入 `LLM_API_KEY` 就能直接启动。
+如果你使用 Gemini 系列模型，在部分网络环境下可能需要代理或科学上网才能稳定访问。
+
 ### 1. 后端启动
 
 ```bash
@@ -111,7 +116,8 @@ pip install -r requirements.txt
 
 # 配置环境变量 (复制 .env.example)
 cp .env.example .env
-# 编辑 .env 填入 LLM_API_KEY / 或者在前端设置界面配置
+# .env.example 已预填 OpenRouter 默认配置，通常只需要填入 LLM_API_KEY
+# LLM_IMAGE_API_KEY 和 LLM_IMAGE_API_BASE 留空时会复用上面的 LLM 配置
 
 # 启动服务
 uvicorn app.main:app --reload --port 8000
@@ -173,6 +179,7 @@ chmod +x launch_aippt.command
 *   **存储路径**: 自定义图片和项目文件的保存位置。
 
 配置文件默认位于 `backend/data/config.json`。
+默认推荐配置为 OpenRouter + Gemini；若切换到 Gemini 相关线路，记得确认当前网络环境可访问。
 
 ---
 

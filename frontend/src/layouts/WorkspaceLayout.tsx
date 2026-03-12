@@ -10,7 +10,7 @@ interface WorkspaceLayoutProps {
 export const WorkspaceLayout: React.FC<WorkspaceLayoutProps> = ({ sidebar, canvas, panel, header }) => {
   return (
     <div className="flex flex-col h-screen w-screen bg-pku-light">
-      <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 shrink-0 z-10">
+      <header className="min-h-14 bg-white border-b border-gray-200 flex items-center px-4 py-3 shrink-0 z-10">
         {header || <span className="font-serif text-lg text-pku-red font-bold">AI-PPT Flow</span>}
       </header>
 

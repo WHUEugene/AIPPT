@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ImagePlus, Loader2, Pencil, Plus } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ImagePlus, Loader2, Pencil, Plus } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { fetchTemplates, generateSlide, updateTemplate } from '../services/api';
@@ -36,6 +36,9 @@ export default function TemplateSelect() {
   const { templates, setTemplates, setCurrentTemplate, upsertTemplate, currentTemplate } = useProjectStore();
   const [loading, setLoading] = useState(false);
   const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
+  const [brokenCoverIds, setBrokenCoverIds] = useState<string[]>([]);
+  const [autoPreviewTriedIds, setAutoPreviewTriedIds] = useState<string[]>([]);
+  const [previewErrorIds, setPreviewErrorIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -60,6 +63,25 @@ export default function TemplateSelect() {
     load();
   }, [setTemplates]);
 
+  useEffect(() => {
+    if (loading || previewLoadingId) {
+      return;
+    }
+
+    const pendingTemplate = templates.find(
+      (template) =>
+        (!template.cover_image || brokenCoverIds.includes(template.id)) &&
+        !autoPreviewTriedIds.includes(template.id)
+    );
+
+    if (!pendingTemplate) {
+      return;
+    }
+
+    setAutoPreviewTriedIds((prev) => [...prev, pendingTemplate.id]);
+    void generateTemplatePreview(pendingTemplate, { silentError: true });
+  }, [templates, loading, previewLoadingId, brokenCoverIds, autoPreviewTriedIds]);
+
   const handleSelect = (template: Template) => {
     setCurrentTemplate(template);
     navigate('/input');
@@ -70,14 +92,19 @@ export default function TemplateSelect() {
     navigate(`/templates/${templateId}/edit`);
   };
 
-  const handleGeneratePreview = async (event: React.MouseEvent, template: Template) => {
-    event.stopPropagation();
+  const generateTemplatePreview = async (
+    template: Template,
+    options?: {
+      silentError?: boolean;
+    }
+  ) => {
     if (previewLoadingId) {
       return;
     }
 
     setError(null);
     setPreviewLoadingId(template.id);
+    setPreviewErrorIds((prev) => prev.filter((id) => id !== template.id));
 
     try {
       const response = await generateSlide({
@@ -112,13 +139,25 @@ export default function TemplateSelect() {
       if (currentTemplate?.id === updatedTemplate.id) {
         setCurrentTemplate(updatedTemplate);
       }
+      setBrokenCoverIds((prev) => prev.filter((id) => id !== template.id));
     } catch (err) {
       console.error(err);
-      setError('模板示例图生成失败，请确认后端绘图接口已启动');
+      setPreviewErrorIds((prev) => (prev.includes(template.id) ? prev : [...prev, template.id]));
+      if (!options?.silentError) {
+        setError('模板示例图生成失败，请确认后端绘图接口已启动');
+      }
     } finally {
       setPreviewLoadingId(null);
     }
   };
+
+  const handleGeneratePreview = async (event: React.MouseEvent, template: Template) => {
+    event.stopPropagation();
+    await generateTemplatePreview(template);
+  };
+
+  const isBrokenCover = (templateId: string) => brokenCoverIds.includes(templateId);
+  const hasUsableCover = (template: Template) => !!template.cover_image && !isBrokenCover(template.id);
 
   return (
     <div className="min-h-screen bg-pku-light p-6 md:p-12">
@@ -151,11 +190,14 @@ export default function TemplateSelect() {
               onClick={() => handleSelect(template)}
             >
               <div className="flex-1 bg-gray-200 relative overflow-hidden">
-                {template.cover_image ? (
+                {hasUsableCover(template) ? (
                   <img 
                     src={template.cover_image} 
                     alt={template.name}
                     className="w-full h-full object-cover"
+                    onError={() =>
+                      setBrokenCoverIds((prev) => (prev.includes(template.id) ? prev : [...prev, template.id]))
+                    }
                   />
                 ) : (
                   <div
@@ -167,10 +209,22 @@ export default function TemplateSelect() {
                     <div className="text-xs uppercase tracking-[0.25em] opacity-70 mb-2">Template</div>
                     <div className="font-serif text-2xl leading-tight">{template.name}</div>
                     <div className="text-xs mt-3 opacity-80 line-clamp-3">{template.style_prompt}</div>
+                    {previewLoadingId === template.id && (
+                      <div className="mt-4 inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-[11px]">
+                        <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                        正在补示例图
+                      </div>
+                    )}
+                    {previewErrorIds.includes(template.id) && (
+                      <div className="mt-4 inline-flex items-center rounded-full bg-black/20 px-3 py-1 text-[11px]">
+                        <AlertCircle className="mr-1.5 h-3 w-3" />
+                        示例图暂未生成成功
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="absolute top-3 right-3 flex gap-2">
-                  {!template.cover_image && (
+                  {!hasUsableCover(template) && (
                     <button
                       type="button"
                       className="h-8 px-3 rounded-md bg-white/90 text-gray-700 text-xs font-medium shadow-sm hover:bg-white"
@@ -204,7 +258,11 @@ export default function TemplateSelect() {
               <div className="p-4 bg-white">
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="font-serif font-bold text-lg mb-1">{template.name}</h3>
-                  {!template.cover_image && <span className="text-[10px] text-amber-600 whitespace-nowrap">无封面图</span>}
+                  {!hasUsableCover(template) && (
+                    <span className="text-[10px] text-amber-600 whitespace-nowrap">
+                      {previewLoadingId === template.id ? '补图中' : previewErrorIds.includes(template.id) ? '补图失败' : '无封面图'}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-gray-500 line-clamp-2">{template.style_prompt}</p>
               </div>

@@ -16,9 +16,9 @@ class AppConfig(BaseModel):
     llm_timeout_seconds: int = Field(default=120, ge=30, le=300, description="API请求超时时间(秒)")
     
     # 文件存储配置
-    image_output_dir: str = Field(default="backend/generated/images", description="图像输出目录")
-    pptx_output_dir: str = Field(default="backend/generated/pptx", description="PPTX输出目录")
-    template_store_path: str = Field(default="backend/data/templates.json", description="模板存储路径")
+    image_output_dir: str = Field(default="generated/images", description="图像输出目录")
+    pptx_output_dir: str = Field(default="generated/pptx", description="PPTX输出目录")
+    template_store_path: str = Field(default="data/templates.json", description="模板存储路径")
     
     # CORS配置
     allowed_origins: List[str] = Field(

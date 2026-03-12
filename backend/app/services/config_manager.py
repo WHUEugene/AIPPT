@@ -26,14 +26,14 @@ class ConfigManager:
             config_file: 配置文件路径，默认为 backend/data/config.json
         """
         self.logger = get_logger()
+        self.base_dir = Path(__file__).resolve().parents[2]
         
         # 确定配置文件路径
         if config_file:
             self.config_file = Path(config_file)
         else:
             # 默认配置文件位置：backend/data/config.json
-            current_dir = Path(__file__).parent.parent.parent
-            self.config_file = current_dir / "data" / "config.json"
+            self.config_file = self.base_dir / "data" / "config.json"
         
         # 确保配置目录存在
         self.config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -48,9 +48,9 @@ class ConfigManager:
             llm_image_model=os.getenv("LLM_IMAGE_MODEL", "google/gemini-3-pro-image-preview"),
             llm_timeout_seconds=int(os.getenv("LLM_TIMEOUT_SECONDS", "120")),
             
-            image_output_dir=os.getenv("IMAGE_OUTPUT_DIR", "backend/generated/images"),
-            pptx_output_dir=os.getenv("PPTX_OUTPUT_DIR", "backend/generated/pptx"),
-            template_store_path=os.getenv("TEMPLATE_STORE_PATH", "backend/data/templates.json"),
+            image_output_dir=self._resolve_runtime_path(os.getenv("IMAGE_OUTPUT_DIR", "generated/images")),
+            pptx_output_dir=self._resolve_runtime_path(os.getenv("PPTX_OUTPUT_DIR", "generated/pptx")),
+            template_store_path=self._resolve_runtime_path(os.getenv("TEMPLATE_STORE_PATH", "data/templates.json")),
             
             allowed_origins=os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,https://your-domain.com").split(","),
             
@@ -60,6 +60,26 @@ class ConfigManager:
         
         self._config: Optional[AppConfig] = None
         self._last_loaded: Optional[float] = None
+
+    def _resolve_runtime_path(self, path_value: str) -> str:
+        """Resolve runtime paths relative to the backend directory."""
+        raw_value = path_value.strip()
+        path = Path(raw_value)
+        if path.is_absolute():
+            return str(path)
+
+        if path.parts and path.parts[0] == "backend":
+            path = Path(*path.parts[1:])
+
+        return str((self.base_dir / path).resolve())
+
+    def _normalize_config_paths(self, config_data: Dict) -> Dict:
+        normalized = dict(config_data)
+        for field_name in ("image_output_dir", "pptx_output_dir", "template_store_path"):
+            field_value = normalized.get(field_name)
+            if isinstance(field_value, str) and field_value.strip():
+                normalized[field_name] = self._resolve_runtime_path(field_value)
+        return normalized
     
     def _load_from_file(self) -> Optional[AppConfig]:
         """
@@ -75,6 +95,7 @@ class ConfigManager:
         try:
             with open(self.config_file, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
+            config_data = self._normalize_config_paths(config_data)
             
             # 验证配置格式
             config = AppConfig(**config_data)
@@ -116,8 +137,9 @@ class ConfigManager:
                     self.logger.logger.warning(f"创建配置文件备份失败: {e}")
             
             # 保存新配置
+            config_data = self._normalize_config_paths(config.dict())
             with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(config.dict(), f, indent=2, ensure_ascii=False)
+                json.dump(config_data, f, indent=2, ensure_ascii=False)
             
             self.logger.logger.info(f"成功保存配置文件: {self.config_file}")
             return True
@@ -190,9 +212,9 @@ class ConfigManager:
                     with open(backup_file, 'r', encoding='utf-8') as f:
                         current_config = json.load(f)
                     
-                    # 保留所有配置，但确保API Key为空
+                    # 保留非敏感配置，但不要把任何 API Key 回填到新配置。
                     template_config['llm_api_key'] = ""
-                    template_config['llm_image_api_key'] = current_config.get('llm_image_api_key', "")
+                    template_config['llm_image_api_key'] = ""
                     template_config['llm_image_api_base'] = current_config.get('llm_image_api_base', "")
                     template_config['project_name'] = current_config.get('project_name', self._default_config.project_name)
                     template_config['llm_api_base'] = current_config.get('llm_api_base', self._default_config.llm_api_base)
@@ -204,6 +226,8 @@ class ConfigManager:
                     template_config['template_store_path'] = current_config.get('template_store_path', self._default_config.template_store_path)
                     template_config['allowed_origins'] = current_config.get('allowed_origins', self._default_config.allowed_origins)
                     template_config['api_prefix'] = current_config.get('api_prefix', self._default_config.api_prefix)
+            
+            template_config = self._normalize_config_paths(template_config)
             
             # 保存为实际配置文件
             with open(self.config_file, 'w', encoding='utf-8') as f:
@@ -233,6 +257,7 @@ class ConfigManager:
             # 创建新的配置对象
             current_data = current_config.dict()
             current_data.update(updates)
+            current_data = self._normalize_config_paths(current_data)
             
             # 验证新配置
             new_config = AppConfig(**current_data)

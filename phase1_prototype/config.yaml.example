@@ -1,0 +1,17 @@
+logging:
+  images_dir: logs/images
+  markdown_file: logs/generation_log.md
+openrouter:
+  api_key: ""
+  available_models:
+    - api_key: ""
+      base_url: https://openrouter.ai/api/v1
+      name: google/gemini-3-pro-image-preview
+    - api_key: ""
+      base_url: https://api.chatfire.cn
+      name: nano-banana-pro_4k
+  base_url: https://api.chatfire.cn
+  model: nano-banana-pro_4k
+server:
+  host: 0.0.0.0
+  port: 7860

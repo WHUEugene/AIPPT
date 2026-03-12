@@ -18,6 +18,8 @@ interface ProjectStore {
   setSlides: (slides: SlideData[]) => void;
   selectSlide: (id: string | null) => void;
   updateSlide: (id: string, updates: Partial<SlideData>) => void;
+  insertSlideAt: (index: number, slide: SlideData) => void;
+  removeSlide: (id: string) => void;
   setProjectTitle: (title: string) => void;
   
   // 新增方法
@@ -25,6 +27,12 @@ interface ProjectStore {
   saveCurrentProject: () => Promise<string>;
   createNewProject: () => void;
 }
+
+const resequenceSlides = (slides: SlideData[]): SlideData[] =>
+  slides.map((slide, index) => ({
+    ...slide,
+    page_num: index + 1,
+  }));
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   templates: [],
@@ -47,16 +55,52 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       };
     }),
   setCurrentTemplate: (template) => set({ currentTemplate: template }),
-  setSlides: (slides) => set({ slides, currentSlideId: slides[0]?.id ?? null }),
+  setSlides: (slides) => {
+    const normalizedSlides = resequenceSlides(slides);
+    set({ slides: normalizedSlides, currentSlideId: normalizedSlides[0]?.id ?? null });
+  },
   selectSlide: (id) => set({ currentSlideId: id }),
   updateSlide: (id, updates) =>
     set((state) => ({
       slides: state.slides.map((slide) => (slide.id === id ? { ...slide, ...updates } : slide)),
     })),
+  insertSlideAt: (index, slide) =>
+    set((state) => {
+      const nextSlides = [...state.slides];
+      nextSlides.splice(index, 0, slide);
+      const normalizedSlides = resequenceSlides(nextSlides);
+      const insertedSlide = normalizedSlides[index];
+      return {
+        slides: normalizedSlides,
+        currentSlideId: insertedSlide?.id ?? state.currentSlideId,
+      };
+    }),
+  removeSlide: (id) =>
+    set((state) => {
+      if (state.slides.length <= 1) {
+        return state;
+      }
+
+      const removeIndex = state.slides.findIndex((slide) => slide.id === id);
+      if (removeIndex === -1) {
+        return state;
+      }
+
+      const nextSlides = state.slides.filter((slide) => slide.id !== id);
+      const normalizedSlides = resequenceSlides(nextSlides);
+      const nextSelectedSlide =
+        normalizedSlides[Math.min(removeIndex, normalizedSlides.length - 1)] ?? normalizedSlides[0] ?? null;
+
+      return {
+        slides: normalizedSlides,
+        currentSlideId: nextSelectedSlide?.id ?? null,
+      };
+    }),
   setProjectTitle: (title) => set({ projectTitle: title || '新项目' }),
   
   // 加载项目数据
   loadProject: (projectData) => {
+    const normalizedSlides = resequenceSlides(projectData.slides);
     const fakeTemplate = {
       id: 'loaded-template',
       name: '已保存的模板',
@@ -65,10 +109,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     
     set({
       projectId: projectData.id,
-      slides: projectData.slides,
+      slides: normalizedSlides,
       currentTemplate: fakeTemplate,
       projectTitle: projectData.title,
-      currentSlideId: projectData.slides[0]?.id ?? null,
+      currentSlideId: normalizedSlides[0]?.id ?? null,
     });
   },
   

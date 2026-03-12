@@ -5,7 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from ..dependencies import get_outline_generator, get_template_store
-from ..schemas.outline import OutlineRequest, OutlineResponse
+from ..schemas.outline import (
+    InsertSlideRequest,
+    InsertSlideResponse,
+    OutlineRequest,
+    OutlineResponse,
+)
 from ..utils.logger import get_logger
 
 router = APIRouter(prefix="/outline", tags=["outline"])
@@ -130,6 +135,22 @@ async def generate_outline(
         )
         
         raise
+
+
+@router.post("/insert-slide", response_model=InsertSlideResponse)
+async def insert_slide(
+    payload: InsertSlideRequest,
+    generator=Depends(get_outline_generator),
+):
+    slide = await generator.generate_insert_slide(
+        user_prompt=payload.user_prompt,
+        insert_after_page_num=payload.insert_after_page_num,
+        prev_slide=payload.prev_slide,
+        next_slide=payload.next_slide,
+        template_name=payload.template_name,
+        style_prompt=payload.style_prompt,
+    )
+    return InsertSlideResponse(slide=slide)
 
 
 @router.post("/generate-stream")

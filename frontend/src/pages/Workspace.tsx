@@ -1,12 +1,12 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Download, RefreshCcw, Play, Save, Clock } from 'lucide-react';
+import { Download, RefreshCcw, Play, Save, Clock, Plus, X, Trash2 } from 'lucide-react';
 import { WorkspaceLayout } from '../layouts/WorkspaceLayout';
 import { SlideCanvas } from '../components/workspace/SlideCanvas';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { AspectRatioSelector } from '../components/ui/AspectRatioSelector';
-import { generateSlide, exportPptx, batchGenerateSlides } from '../services/api';
+import { generateSlide, exportPptx, batchGenerateSlides, generateInsertedSlide } from '../services/api';
 import type { SlideStatus, CustomDimensions } from '../services/types';
 import { useProjectStore } from '../store/useProjectStore';
 
@@ -20,6 +20,8 @@ export default function Workspace() {
     currentSlideId,
     selectSlide,
     updateSlide,
+    insertSlideAt,
+    removeSlide,
     currentTemplate,
     projectTitle,
     projectId,
@@ -35,6 +37,10 @@ export default function Workspace() {
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [insertTargetIndex, setInsertTargetIndex] = useState<number | null>(null);
+  const [insertPrompt, setInsertPrompt] = useState('');
+  const [insertError, setInsertError] = useState<string | null>(null);
+  const [insertGenerating, setInsertGenerating] = useState(false);
   const [lastEditTime, setLastEditTime] = useState<number>(Date.now());
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoBatchTriggeredRef = useRef(false);
@@ -54,6 +60,14 @@ export default function Workspace() {
     [slides, regeneratingSlideIds]
   );
   const isCurrentSlideRegenerating = currentSlide ? regeneratingSlideIds.includes(currentSlide.id) : false;
+  const insertPrevSlide = insertTargetIndex !== null ? slides[insertTargetIndex] ?? null : null;
+  const insertNextSlide = insertTargetIndex !== null ? slides[insertTargetIndex + 1] ?? null : null;
+  const isInsertModalOpen = insertTargetIndex !== null;
+  const headerStatusText = activeRegenerationSlides.length > 0
+    ? `正在重绘 ${activeRegenerationSlides.length} 张图片`
+    : batchGenerating
+      ? batchProgress || '正在批量生成图片...'
+      : regenerationMessage;
 
   const syncRegenerationIds = (nextIds: string[]) => {
     regeneratingSlideIdsRef.current = nextIds;
@@ -85,6 +99,30 @@ export default function Workspace() {
     regenerationMessageTimerRef.current = setTimeout(() => {
       setRegenerationMessage('');
     }, 4000);
+  };
+
+  const buildSlideContext = (slide: typeof slides[number]) => ({
+    page_num: slide.page_num,
+    type: slide.type,
+    title: slide.title,
+    content_text: slide.content_text,
+    visual_desc: slide.visual_desc,
+  });
+
+  const openInsertModal = (afterIndex: number) => {
+    setInsertTargetIndex(afterIndex);
+    setInsertPrompt('');
+    setInsertError(null);
+    setError(null);
+  };
+
+  const closeInsertModal = (force = false) => {
+    if (insertGenerating && !force) {
+      return;
+    }
+    setInsertTargetIndex(null);
+    setInsertPrompt('');
+    setInsertError(null);
   };
 
   // 批量生成所有图片
@@ -351,84 +389,117 @@ export default function Workspace() {
     }
   };
 
+  const handleInsertSlide = async () => {
+    if (insertTargetIndex === null || !insertPrevSlide || !insertNextSlide) {
+      setInsertError('当前插页位置无效，请重新选择。');
+      return;
+    }
+
+    const trimmedPrompt = insertPrompt.trim();
+    if (!trimmedPrompt) {
+      setInsertError('请先描述新增这一页的内容和画面。');
+      return;
+    }
+
+    setInsertGenerating(true);
+    setInsertError(null);
+    setError(null);
+
+    try {
+      const response = await generateInsertedSlide({
+        user_prompt: trimmedPrompt,
+        insert_after_page_num: insertPrevSlide.page_num,
+        template_name: currentTemplate?.name,
+        style_prompt: currentTemplate?.style_prompt,
+        prev_slide: buildSlideContext(insertPrevSlide),
+        next_slide: buildSlideContext(insertNextSlide),
+      });
+
+      insertSlideAt(insertTargetIndex + 1, {
+        ...response.slide,
+        image_url: undefined,
+        final_prompt: undefined,
+        status: 'pending',
+      });
+      setLastEditTime(Date.now());
+      closeInsertModal(true);
+    } catch (err) {
+      console.error(err);
+      setInsertError('插入页面生成失败，请确认后端文本生成接口可用。');
+    } finally {
+      setInsertGenerating(false);
+    }
+  };
+
+  const handleDeleteCurrentSlide = () => {
+    if (!currentSlide) {
+      return;
+    }
+    if (slides.length <= 1) {
+      setError('至少需要保留 1 页，当前页面不能删除。');
+      return;
+    }
+
+    removeSlide(currentSlide.id);
+    setLastEditTime(Date.now());
+    setError(null);
+    showRegenerationMessage(`第 ${currentSlide.page_num} 页已删除`);
+  };
+
   const sidebar = (
     <div className="space-y-4">
-      {slides.map((slide) => (
-        <Card
-          key={slide.id}
-          className={`p-2 cursor-pointer transition-all ${slide.id === currentSlide.id ? 'ring-2 ring-pku-red' : 'hover:ring-1 ring-gray-200'}`}
-          onClick={() => selectSlide(slide.id)}
-        >
-          <div className="aspect-video bg-gray-100 rounded overflow-hidden relative">
-            {slide.image_url ? (
-              <>
-                <img 
-                  src={slide.image_url} 
-                  alt={`第${slide.page_num}页`}
-                  className="w-full h-full object-cover"
-                />
-                {regeneratingSlideIds.includes(slide.id) && (
-                  <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-1 text-white">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span className="text-[10px] font-medium">重绘中</span>
+      {slides.map((slide, index) => (
+        <React.Fragment key={slide.id}>
+          <Card
+            className={`p-2 cursor-pointer transition-all ${slide.id === currentSlide.id ? 'ring-2 ring-pku-red' : 'hover:ring-1 ring-gray-200'}`}
+            onClick={() => selectSlide(slide.id)}
+          >
+            <div className="aspect-video bg-gray-100 rounded overflow-hidden relative">
+              {slide.image_url ? (
+                <>
+                  <img 
+                    src={slide.image_url} 
+                    alt={`第${slide.page_num}页`}
+                    className="w-full h-full object-cover"
+                  />
+                </>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">
+                  {slide.status === 'generating' ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="w-4 h-4 border-2 border-pku-red border-t-transparent rounded-full animate-spin"></div>
+                      <span>生成中</span>
                     </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">
-                {slide.status === 'generating' ? (
-                  <div className="flex flex-col items-center gap-1">
-                    <div className="w-4 h-4 border-2 border-pku-red border-t-transparent rounded-full animate-spin"></div>
-                    <span>生成中</span>
-                  </div>
-                ) : (
-                  <span>待生成</span>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="mt-2 text-xs text-center font-medium text-gray-600">
-            第 {slide.page_num} 页
-          </div>
-        </Card>
+                  ) : (
+                    <span>待生成</span>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="mt-2 text-xs text-center font-medium text-gray-600">
+              第 {slide.page_num} 页
+            </div>
+          </Card>
+
+          {index < slides.length - 1 && (
+            <div className="flex justify-center py-0.5">
+              <button
+                type="button"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-gray-300 bg-white text-gray-500 transition-colors hover:border-pku-red hover:text-pku-red"
+                onClick={() => openInsertModal(index)}
+                aria-label={`在第 ${slide.page_num} 页后插入一页`}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </React.Fragment>
       ))}
     </div>
   );
 
   const canvas = (
     <div className="w-full flex flex-col items-center gap-6">
-      {(activeRegenerationSlides.length > 0 || regenerationMessage) && (
-        <div className="w-full max-w-2xl p-4 bg-amber-50 border border-amber-200 rounded-lg">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                {activeRegenerationSlides.length > 0 ? (
-                  <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1"></div>
-                )}
-                <span className="text-sm font-medium text-amber-900">
-                  {activeRegenerationSlides.length > 0
-                    ? `正在重绘 ${activeRegenerationSlides.length}/${MAX_CONCURRENT_REGENERATIONS} 张图片`
-                    : regenerationMessage}
-                </span>
-              </div>
-              {activeRegenerationSlides.length > 0 && (
-                <div className="text-xs text-amber-800">
-                  {activeRegenerationSlides.map((slide) => `第 ${slide.page_num} 页`).join('、')}
-                </div>
-              )}
-              {regenerationMessage && activeRegenerationSlides.length > 0 && (
-                <div className="text-xs text-amber-700">{regenerationMessage}</div>
-              )}
-            </div>
-            <span className="text-xs text-amber-700 whitespace-nowrap">可继续切换页面重绘其他图片</span>
-          </div>
-        </div>
-      )}
-
       {batchProgress && (
         <div className="w-full max-w-2xl p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-center gap-2">
@@ -565,66 +636,156 @@ export default function Workspace() {
       >
         <RefreshCcw className="w-4 h-4 mr-2" /> {isCurrentSlideRegenerating ? '当前页重绘中...' : '更新并重绘'}
       </Button>
+
+      <Button
+        className="w-full"
+        variant="outline"
+        onClick={handleDeleteCurrentSlide}
+        disabled={slides.length <= 1 || batchGenerating || isCurrentSlideRegenerating}
+      >
+        <Trash2 className="w-4 h-4 mr-2" /> 删除本页
+      </Button>
     </div>
   );
 
   return (
-    <WorkspaceLayout
-      header={
-        <div className="flex justify-between w-full items-center">
-          <div className="flex items-center gap-8">
-            <div>
-              <span className="font-serif text-xl font-bold text-pku-red">{projectTitle}</span>
-            </div>
-            
-            <div className="flex items-center gap-6 text-sm">
-              <div className="text-xs text-gray-500">
-                模版：{currentTemplate?.name || '未选择'}
+    <>
+      <WorkspaceLayout
+        header={
+          <div className="flex justify-between w-full items-start gap-6">
+            <div className="flex items-start gap-8">
+              <div>
+                <span className="font-serif text-xl font-bold text-pku-red">{projectTitle}</span>
+                {headerStatusText && (
+                  <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+                    {(activeRegenerationSlides.length > 0 || batchGenerating) && (
+                      <div className="h-3 w-3 rounded-full border border-current border-t-transparent animate-spin" />
+                    )}
+                    <span>{headerStatusText}</span>
+                    {activeRegenerationSlides.length > 0 && (
+                      <span className="text-gray-400">
+                        {activeRegenerationSlides.map((slide) => `第 ${slide.page_num} 页`).join('、')}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               
-              {projectId && (
-                <>
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <Clock className="w-3 h-3" />
-                    已保存
-                  </div>
-                  
-                  <div className="text-xs text-gray-400">
-                    项目ID: {projectId.slice(0, 8)}...
-                  </div>
-                </>
-              )}
+              <div className="flex items-center gap-6 text-sm">
+                <div className="text-xs text-gray-500">
+                  模版：{currentTemplate?.name || '未选择'}
+                </div>
+                
+                {projectId && (
+                  <>
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <Clock className="w-3 h-3" />
+                      已保存
+                    </div>
+                    
+                    <div className="text-xs text-gray-400">
+                      项目ID: {projectId.slice(0, 8)}...
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleSave} 
+                disabled={saving || batchGenerating}
+              >
+                <Save className="w-4 h-4 mr-2" /> 
+                {saving ? '保存中...' : '保存项目'}
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                onClick={() => navigate('/history')}
+                className="text-gray-600 hover:text-pku-red"
+              >
+                <Clock className="w-4 h-4 mr-2" /> 
+                我的项目
+              </Button>
+              
+              <Button variant="outline" onClick={handleExport} disabled={exporting}>
+                <Download className="w-4 h-4 mr-2" /> {exporting ? '导出中...' : '导出 PPTX'}
+              </Button>
             </div>
           </div>
-          
-          <div className="flex gap-3">
-            <Button 
-              variant="outline" 
-              onClick={handleSave} 
-              disabled={saving || batchGenerating}
-            >
-              <Save className="w-4 h-4 mr-2" /> 
-              {saving ? '保存中...' : '保存项目'}
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              onClick={() => navigate('/history')}
-              className="text-gray-600 hover:text-pku-red"
-            >
-              <Clock className="w-4 h-4 mr-2" /> 
-              我的项目
-            </Button>
-            
-            <Button variant="outline" onClick={handleExport} disabled={exporting}>
-              <Download className="w-4 h-4 mr-2" /> {exporting ? '导出中...' : '导出 PPTX'}
-            </Button>
+        }
+        sidebar={sidebar}
+        canvas={canvas}
+        panel={panel}
+      />
+
+      {isInsertModalOpen && insertPrevSlide && insertNextSlide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-gray-200 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  在第 {insertPrevSlide.page_num} 页和第 {insertNextSlide.page_num} 页之间插入新页面
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  输入这一页想呈现的内容，系统会结合前后文生成标题、正文和画面描述。
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                onClick={() => closeInsertModal()}
+                disabled={insertGenerating}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 px-6 py-5">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <div className="text-xs font-semibold text-gray-500">前一页</div>
+                  <div className="mt-2 text-sm font-medium text-gray-800">{insertPrevSlide.title}</div>
+                  <div className="mt-2 max-h-24 overflow-hidden text-xs leading-5 text-gray-500">{insertPrevSlide.content_text}</div>
+                </div>
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <div className="text-xs font-semibold text-gray-500">后一页</div>
+                  <div className="mt-2 text-sm font-medium text-gray-800">{insertNextSlide.title}</div>
+                  <div className="mt-2 max-h-24 overflow-hidden text-xs leading-5 text-gray-500">{insertNextSlide.content_text}</div>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 text-sm font-medium text-gray-700">新增页描述</div>
+                <textarea
+                  className="h-40 w-full rounded-xl border border-gray-300 p-4 text-sm focus:border-pku-red focus:outline-none focus:ring-1 focus:ring-pku-red"
+                  value={insertPrompt}
+                  onChange={(e) => setInsertPrompt(e.target.value)}
+                  placeholder="例如：这一页需要放在行业背景和解决方案之间，先说明当前业务痛点，再引出为什么我们要做 AI 工作坊，画面里有会议桌、流程图和几组关键数据。"
+                />
+              </div>
+
+              {insertError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  {insertError}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
+              <Button variant="outline" onClick={() => closeInsertModal()} disabled={insertGenerating}>
+                取消
+              </Button>
+              <Button onClick={handleInsertSlide} disabled={insertGenerating}>
+                <Plus className="mr-2 h-4 w-4" />
+                {insertGenerating ? '生成中...' : '生成新增页内容'}
+              </Button>
+            </div>
           </div>
         </div>
-      }
-      sidebar={sidebar}
-      canvas={canvas}
-      panel={panel}
-    />
+      )}
+    </>
   );
 }

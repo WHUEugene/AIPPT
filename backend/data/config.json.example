@@ -8,7 +8,7 @@
   "llm_timeout_seconds": 180,
   "image_output_dir": "generated/images",
   "pptx_output_dir": "generated/pptx",
-  "template_store_path": "backend/data/templates.json",
+  "template_store_path": "data/templates.json",
   "allowed_origins": [
     "http://localhost:5173",
     "https://your-domain.com"

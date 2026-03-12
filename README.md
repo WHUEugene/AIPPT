@@ -141,12 +141,20 @@ npm run dev
 start.bat
 ```
 
-#### Linux/macOS 用户  
+#### Linux 用户  
 ```bash
 # 在项目根目录执行
 chmod +x start.sh
 ./start.sh
 ```
+
+#### macOS 用户
+```bash
+# 第一次执行可在项目根目录运行一次
+chmod +x launch_aippt.command
+```
+
+之后可以直接在 Finder 里双击 [launch_aippt.command](/Users/linyong/vscode/AIPPT_260103/launch_aippt.command) 启动，无需手动打开终端输入命令。
 
 脚本会自动：
 - 检查并安装后端依赖

@@ -1,8 +1,10 @@
 import type {
+  InsertSlideResponse,
   OutlineResponse,
   ProjectSchema,
   ProjectListItem,
   ProjectState,
+  SlideContext,
   SlideGenerateResponse,
   Template,
   TemplateAnalyzeResponse,
@@ -126,6 +128,22 @@ export async function generateOutline(text: string, slideCount: number, template
     body: JSON.stringify({ text, slide_count: slideCount, template_id: templateId }),
   });
   return handleResponse<OutlineResponse>(res);
+}
+
+export async function generateInsertedSlide(payload: {
+  user_prompt: string;
+  insert_after_page_num: number;
+  template_name?: string;
+  style_prompt?: string;
+  prev_slide?: SlideContext;
+  next_slide?: SlideContext;
+}): Promise<InsertSlideResponse> {
+  const res = await fetch(`${API_BASE}/outline/insert-slide`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<InsertSlideResponse>(res);
 }
 
 export interface StreamMessage {

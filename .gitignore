@@ -287,3 +287,34 @@ doc/prompt_samples/
 !doc/promo/
 !doc/promo/*.jpg
 phase1_prototype/config.yaml
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.pem
+*.key
+*.p12
+*.crt
+*.cer
+*.jks
+*.keystore
+*.mobileprovision
+*.p8
+*.secrets
+*.secret
+
+# Local runtime data
+generated/
+logs/
+backend/logs/
+backend/backend/
+backend/.venv/
+backend/venv/
+backend/data/config.json
+backend/data/config.json.backup
+backend/data/projects/
+backend/data/templates.local.json
+launch_aippt.command

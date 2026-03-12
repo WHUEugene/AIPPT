@@ -35,8 +35,20 @@ export interface SlideData {
   status: SlideStatus;
 }
 
+export interface SlideContext {
+  page_num: number;
+  type: SlideType;
+  title: string;
+  content_text: string;
+  visual_desc: string;
+}
+
 export interface OutlineResponse {
   slides: SlideData[];
+}
+
+export interface InsertSlideResponse {
+  slide: SlideData;
 }
 
 export interface SlideGenerateResponse {

@@ -6,6 +6,8 @@ from typing import List
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+BASE_DIR = Path(__file__).resolve().parents[1]
+
 
 class Settings(BaseSettings):
     """Runtime configuration for the AI-PPT Flow backend."""
@@ -47,15 +49,15 @@ class Settings(BaseSettings):
     )
 
     template_store_path: Path = Field(
-        default=Path("backend/data/templates.json"),
+        default=BASE_DIR / "data" / "templates.json",
         description="Location used to persist template definitions.",
     )
     image_output_dir: Path = Field(
-        default=Path("backend/generated/images"),
+        default=BASE_DIR / "generated" / "images",
         description="Directory where generated slide assets are written.",
     )
     pptx_output_dir: Path = Field(
-        default=Path("backend/generated/pptx"),
+        default=BASE_DIR / "generated" / "pptx",
         description="Directory for temporary PPTX exports.",
     )
 
@@ -65,7 +67,7 @@ class Settings(BaseSettings):
     )
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=BASE_DIR / ".env",
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
     )
